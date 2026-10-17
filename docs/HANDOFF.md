@@ -210,6 +210,21 @@ in §8.
    to exactly 1.0, so the market cannot diverge and the injection test was
    vacuous. Tests use 40.
 5. **`start_all.sh` would have killed the container** (see `deploy/deploy.md`).
+6. **The player panel was empty on all 1,014 maps.** `player_round_economy`
+   stores `steamid` as int64, `kills` stores `attacker_steamid` as float64, and
+   at ~7.6e16 (past 2^53) those are different numbers. The join matched nothing,
+   kills were 0, variance was 0, and every player was skipped for zero variance
+   without an error. Now joined on player name.
+7. **The alert thresholds do not beat a misaligned null** (spec §4.3a). This is
+   the headline limitation: 0.77 alerts/map real vs 0.79 on a circular-shifted
+   null. A detector change is required, not a threshold change.
+
+### Build speed
+
+The per-map build is CPU-bound and this box has **3 vCPUs**. `build_artifacts`
+fans out over a fork pool: 1,014 maps in **6.5 minutes** (was ~20) with
+`--jobs 3` (the default, `--jobs 0` = auto). Output is byte-identical because
+`map_uid` is the final sort tiebreaker.
 
 ## 8. Open items
 
