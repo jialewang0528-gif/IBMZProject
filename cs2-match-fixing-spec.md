@@ -180,7 +180,7 @@ A divergence alert requires **all** of:
 ### 4.3 Resolution floor (the honest limitation)
 
 - Market timestamps are **1-minute snapshots**: we cannot order two events closer than 60s, and a print is attributed to the round window it falls in, not to the second it happened.
-- Map start is estimated from `maps_meta.match_date`, refined by matching the sharpest live map-winner move to round 1. Inter-map breaks are assumed at 10 minutes. *(assumption)*
+- **`maps_meta.match_date` is the series start, not the map start** — every map of a match carries the same value *(measured)*. Map *k*'s start is therefore computed as series start + the durations of maps 1..k−1 + a 10-minute break per map, with each map's duration taken from its last `official_end` tick. `python -m pipeline.align --validate` reports per-map market coverage, which drops to ~0 if this anchor is wrong.
 - HLTV `scheduled_start_utc` is **not** used: it sits a median 2.1 hours after the market's own start time *(measured)*.
 - Therefore: **ordering below ~60 seconds plus map-start error is not measurable.** Every alert displays this floor. Round-level market moves cannot be detected at all, because round-level markets do not exist in this data.
 

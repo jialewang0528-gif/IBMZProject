@@ -91,6 +91,8 @@ The market side already guarantees `selection=team1` means `maps_meta.team1` (ve
 map_start_utc(map)  = maps_meta.match_date                      # tz-aware, anchor
 round_start_utc(r)  = map_start_utc + round_detail.start / tickrate
 tickrate           ∈ {64, 128}                                  # detect in T1
+map_start(map k)   = series_start + Σ(duration + 600s) for maps 1..k-1
+                     # match_date is the SERIES start (all maps share it)
 resolution_floor_s  = 60 + map_start_error_s                    # displayed on every alert
 ```
 

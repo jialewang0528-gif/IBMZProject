@@ -26,6 +26,10 @@ PLAUSIBLE_ROUND_S = (45.0, 115.0)
 # Cross-check tolerance: map length implied by ticks vs observed live window.
 MARKET_SPAN_TOLERANCE = 0.40
 MARKET_LOOKBACK_S = 600
+# Inter-map break assumption (spec §4.3): used to place map k's start after the
+# earlier maps of the same series. maps_meta.match_date is the SERIES start, not
+# the map start, so map 2+ must be offset or every later map is misaligned.
+BREAK_S = 600
 
 
 class ClockError(RuntimeError):
@@ -85,7 +89,39 @@ def _market_span_s(map_uid: str) -> float | None:
     live = series[series["is_live"]]
     if live.empty:
         return None
-    return (live["ts_utc"].max() - meta["map_start_utc"]).total_seconds()
+    return (live["ts_utc"].max() - map_start_utc(map_uid)).total_seconds()
+
+
+def _map_duration_s(map_index_meta: pd.Series, tickrate: int = 64) -> float:
+    """Duration of one map in seconds, from its last official_end tick."""
+    det = io.read_table("round_detail")
+    rows = det[det["map_uid"].astype(str) == str(map_index_meta["map_uid"])]
+    if rows.empty:
+        return 0.0
+    last_tick = pd.to_numeric(rows["official_end"], errors="coerce").max()
+    if pd.isna(last_tick):
+        return 0.0
+    return float(last_tick) / tickrate
+
+
+def map_start_utc(map_uid: str) -> pd.Timestamp:
+    """Wall-clock start of THIS map.
+
+    maps_meta.match_date is the series start (all maps of a match share it), so
+    map k's start = series start + the durations and breaks of maps 1..k-1.
+    """
+    meta = io.get_map(map_uid)
+    series_start = meta["map_start_utc"]
+    map_index = int(meta["map_index"])
+    if map_index <= 1:
+        return series_start
+    meta_all = io.maps()
+    prior = meta_all[(meta_all["match_id"] == meta["match_id"])
+                     & (meta_all["map_index"] < map_index)]
+    offset = 0.0
+    for _, row in prior.iterrows():
+        offset += _map_duration_s(row) + BREAK_S
+    return series_start + pd.Timedelta(seconds=offset)
 
 
 def map_panel(map_uid: str, tickrate: int | None = None) -> pd.DataFrame:
@@ -97,7 +133,7 @@ def map_panel(map_uid: str, tickrate: int | None = None) -> pd.DataFrame:
     if det.empty:
         raise ClockError(f"no round_detail rows for {map_uid}")
 
-    start = meta["map_start_utc"]
+    start = map_start_utc(map_uid)
     panel = pd.DataFrame({
         "map_uid": str(map_uid),
         "match_id": meta["match_id"],
@@ -192,15 +228,23 @@ def validate(n_maps: int = 20) -> pd.DataFrame:
                 sides.add("t")
             else:
                 sides.add("unknown")
+        # market coverage: catches a wrong map-start anchor (e.g. using the
+        # series start for map 2, which shifts every round past the lookback)
+        try:
+            cov = float(attach_market(panel)["market_p"].notna().mean())
+        except Exception:  # noqa: BLE001
+            cov = 0.0
         rows.append({
             "map_uid": uid, "tickrate": tr, "rounds": len(panel),
             "orientation_ok": sides <= {"ct", "t"} and bool(sides),
+            "market_cov": round(cov, 2),
             "note": "" if sides <= {"ct", "t"} else f"team1 not found in sides: {sides}",
         })
     out = pd.DataFrame(rows)
     ok = out[out["tickrate"].notna()]
     print(f"maps checked: {len(out)}  tickrate resolved: {len(ok)}  "
-          f"orientation ok: {int(out['orientation_ok'].sum())}")
+          f"orientation ok: {int(out['orientation_ok'].sum())}  "
+          f"market coverage median: {out['market_cov'].median():.2f}")
     print(out.to_string(index=False))
     return out
 

@@ -129,6 +129,15 @@ class TestPipelineEndToEnd(unittest.TestCase):
         self.assertIn("orientation ok", out)
         self.assertNotIn("None", out.split("tickrate resolved")[1].split("\n")[0])
 
+    def test_market_coverage_across_maps(self):
+        """Map 2 shares match_date with map 1; if the anchor were the series
+        start, map 2 would have ~zero market coverage."""
+        out = run(["-m", "pipeline.align", "--validate"], self.env).stdout
+        self.assertIn("market coverage median", out)
+        median = float(out.split("market coverage median:")[1].split()[0])
+        self.assertGreater(median, 0.5, "market join failed for most rounds: "
+                                        "check the map-start anchor")
+
     def test_no_leakage_in_features(self):
         out = run(["-m", "pipeline.features", "--map-uid", self.map_uid], self.env).stdout
         self.assertIn("no nulls, no leakage columns", out)

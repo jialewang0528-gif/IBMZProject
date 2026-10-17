@@ -84,6 +84,10 @@ def main():
 
     all_teams = teams()
     for mi, (team1, team2, demofile) in enumerate(all_teams):
+        # matches_meta.match_date is the SERIES start and is identical for every
+        # map of the match, exactly like the real data.
+        match_start = base + timedelta(days=mi)
+        prev_end_s = 0.0
         for k in range(2):
             if map_counter >= n_maps_total:
                 break
@@ -91,7 +95,8 @@ def main():
             map_index = k + 1
             map_uid = f"{match_id}-{map_index}"
             map_name = MAPS[map_counter % len(MAPS)]
-            start = base + timedelta(days=mi, minutes=75 * k)
+            map_start_offset_s = 0.0 if k == 0 else prev_end_s + 600
+            start = match_start + timedelta(seconds=map_start_offset_s)
             is_demo_map = map_counter == demo_map_index
             map_counter += 1
 
@@ -174,12 +179,14 @@ def main():
                                 "FALSE", "FALSE", "FALSE", "FALSE", rng.randint(15, 120), "head",
                             ])
 
+            prev_end_s = float(rounds_det[-1][5]) / TICKRATE  # official_end of last round
+
             # map result
             winner_team = team1 if score[team1] > score[team2] else team2
             rounds_played = min(args.rounds, max(score.values()))
             maps_meta.append([
                 map_uid, match_id, map_index, f"Event {mi}", team1, team2,
-                score[team1], score[team2], map_name, start.isoformat(),
+                score[team1], score[team2], map_name, match_start.isoformat(),
                 score[team1] + score[team2], "regulation", winner_team, 0,
                 "True", "pass",
             ])
