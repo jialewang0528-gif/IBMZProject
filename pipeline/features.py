@@ -16,7 +16,7 @@ import argparse
 
 import pandas as pd
 
-from pipeline import io
+from pipeline import align, io
 
 LEAKY = {
     "winner_side", "winner_team", "end_reason", "duration_ticks",
@@ -64,12 +64,14 @@ def build_map(panel: pd.DataFrame) -> pd.DataFrame:
 
     team1 = str(meta["team1"])
     team2 = str(meta["team2"])
-    def norm(x) -> str:
-        return " ".join(str(x).split()).casefold()
-
-    df["team1_is_ct"] = (
-        df["ct_team_name_resolved"].map(norm) == norm(team1)
-    ).astype(int)
+    # Same comparison the alignment gate uses: the two sources decorate names
+    # differently ('Morningstar' vs 'MORNING STAR-'), so an exact string match
+    # silently marks rounds as team2.
+    df["team1_is_ct"] = df["ct_team_name_resolved"].map(
+        lambda name: int(align.same_team(team1, name)))
+    unresolved = int((df["team1_is_ct"] == 0).sum() == len(df))
+    if unresolved:
+        raise ValueError(f"team1 {team1!r} matches neither side in {map_uid}")
 
     ct = df["team1_is_ct"].astype(bool)
 
@@ -104,7 +106,7 @@ def build_map(panel: pd.DataFrame) -> pd.DataFrame:
 
     df = df.sort_values("round_num").reset_index(drop=True)
     # score *before* each round: previous rounds only, never the current one
-    win1 = (df["winner_team"].map(norm) == norm(team1)).astype(int)
+    win1 = df["winner_team"].map(lambda w: int(align.same_team(team1, w)))
     df["score_team1"] = win1.cumsum().shift(1).fillna(0).astype(int)
     df["score_team2"] = (df["round_num"] - 1 - df["score_team1"]).astype(int)
     df["score_diff"] = df["score_team1"] - df["score_team2"]
@@ -114,7 +116,7 @@ def build_map(panel: pd.DataFrame) -> pd.DataFrame:
     df["map_index"] = int(meta["map_index"])
     df["hltv_stars"] = float(meta.get("hltv_stars", 0) or 0)
 
-    label = int(norm(meta["map_winner_team_resolved"]) == norm(team1))
+    label = int(align.same_team(team1, meta["map_winner_team_resolved"]))
     df["label"] = label
     df["team1"] = team1
     df["team2"] = team2

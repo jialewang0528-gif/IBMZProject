@@ -78,9 +78,19 @@ def read_table(name: str, root: Path | None = None) -> pd.DataFrame:
 
 
 def read_odds(root: Path | None = None) -> pd.DataFrame:
-    """Read the market table, parsing timestamps to UTC."""
+    """Read the market table, parsing timestamps to UTC.
+
+    The parse of the ~1M-row table costs seconds, and the alignment code asks
+    for it once per map, so the parsed frame is cached per (path, mtime). The
+    copy keeps callers free to mutate the result.
+    """
     path = resolve_odds(root)
-    df = _read_csv(str(path), path.stat().st_mtime).copy()
+    return _read_odds_cached(str(path), path.stat().st_mtime).copy()
+
+
+@lru_cache(maxsize=4)
+def _read_odds_cached(path_str: str, mtime: float) -> pd.DataFrame:
+    df = _read_csv(path_str, mtime).copy()
     df["ts_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True, format="mixed")
     for col in ("match_id", "map_index"):
         if col in df.columns:
@@ -88,6 +98,24 @@ def read_odds(root: Path | None = None) -> pd.DataFrame:
     if "is_live" in df.columns:
         df["is_live"] = _as_bool(df["is_live"])
     return df.sort_values("ts_utc").reset_index(drop=True)
+
+
+def read_map_winner(root: Path | None = None) -> pd.DataFrame:
+    """Just the per-map team1 market: the only market the analysis uses.
+
+    Filtering the 1M-row table costs about a second, and every map in the
+    pipeline asks for this, so it is filtered once and cached.
+    """
+    path = resolve_odds(root)
+    return _map_winner_cached(str(path), path.stat().st_mtime)
+
+
+@lru_cache(maxsize=4)
+def _map_winner_cached(path_str: str, mtime: float) -> pd.DataFrame:
+    df = _read_odds_cached(path_str, mtime)
+    sel = df[df["selection"].astype(str).str.lower() == "team1"]
+    sel = sel[sel["market"].astype(str).str.lower().isin({"map_winner", "map winner"})]
+    return sel.reset_index(drop=True)
 
 
 def maps() -> pd.DataFrame:

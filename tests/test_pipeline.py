@@ -10,6 +10,7 @@ none), no network.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import socket
@@ -26,6 +27,18 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 PY = sys.executable
+
+
+@contextlib.contextmanager
+def _data_root(root: Path):
+    """Point pipeline.io at a fixture directory for the duration of a test."""
+    from pipeline import io
+    original = io.DATA_ROOT
+    io.DATA_ROOT = Path(root)
+    try:
+        yield
+    finally:
+        io.DATA_ROOT = original
 
 
 def run(args: list[str], env: dict, expect: int = 0) -> subprocess.CompletedProcess:
@@ -99,31 +112,133 @@ class TestClockUnits(unittest.TestCase):
                         "official_end", "winner", "reason", "bomb_plant", "bomb_site",
                         "duration_ticks"])
             for row in rows:
-                w.writerow(["m-1", *row, "ct", "ct_killed", "FALSE", "", row[-1]])
+                # row is [round_num, start, freeze_end, end, official_end, duration]
+                w.writerow(["m-1", *row, "ct", "ct_killed", "FALSE", ""])
 
     def test_unit_inference(self):
-        from pipeline import align
+        """The detector itself must be exercised, not just the arithmetic."""
+        from pipeline import align, io
         expected = {"seconds": 1, "ticks64": 64, "ticks128": 128}
         for unit, want in expected.items():
             with tempfile.TemporaryDirectory() as td:
                 root = Path(td)
                 self._write(root, unit)
-                det = pd.read_csv(root / "tables" / "round_detail.csv.gz")
-                mean = det["duration_ticks"].mean()
-                if unit == "seconds":
-                    self.assertEqual(want, 1)
-                else:
-                    self.assertAlmostEqual(mean / want, 75)  # what the detector relies on
-        # the ambiguous case must raise, not guess
+                with _data_root(root):
+                    got = align.detect_tickrate()
+                self.assertEqual(want, got, f"{unit} misread as {got}")
+
+    def test_unreadable_clock_raises_instead_of_guessing(self):
+        """No divisor may satisfy the rules -> raise, never pick one."""
+        from pipeline import align, io
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             self._write(root, "seconds")
             det = pd.read_csv(root / "tables" / "round_detail.csv.gz")
-            det["duration_ticks"] = det["duration_ticks"] * 1000  # nonsense units
+            # A 300 s live round is impossible in CS2 under any reading, and
+            # the freezetime is the same 20 units, so nothing fits a real rate.
+            det["freeze_end"] = det["start"] + 20
+            det["end"] = det["freeze_end"] + 300
             det.to_csv(root / "tables" / "round_detail.csv.gz", index=False)
-            vals = det["duration_ticks"]
-            self.assertFalse(45 <= vals.mean() <= 115)
-            self.assertFalse(any(45 <= vals.mean() / tr <= 115 for tr in (64, 128)))
+            with _data_root(root):
+                with self.assertRaises(align.ClockError) as ctx:
+                    align.detect_tickrate()
+            msg = str(ctx.exception)
+            self.assertIn("unresolved", msg)
+            for label in ("seconds", "64-tick", "128-tick"):
+                self.assertIn(label, msg, "the error must show every interpretation tried")
+
+    def test_a_64_tick_dataset_is_not_misread_as_128(self):
+        """Regression: mean round length is ~the same at both rates. The old
+        detector resolved 64-tick data to 128 on a knife-edge, putting every
+        timestamp out by 2x."""
+        from pipeline import align, io
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self._write(root, "ticks64")
+            with _data_root(root):
+                stats = align.clock_stats(io.read_table("round_detail"))
+                score_64, _ = align.judge_divisor(stats, 64)
+                score_128, _ = align.judge_divisor(stats, 128)
+                detected = align.detect_tickrate()
+            self.assertGreater(score_64, score_128,
+                               "the freezetime rules must separate 64 from 128")
+            self.assertEqual(64, detected, "64-tick data must not be read as 128")
+
+
+class TestMarketJoin(unittest.TestCase):
+    def _panel(self, unit="ns"):
+        starts = pd.date_range("2026-03-24T02:00:00Z", periods=4, freq="2min")
+        return pd.DataFrame({
+            "map_uid": "m-1", "match_id": 1, "map_index": 1,
+            "round_num": [1, 2, 3, 4],
+            "map_start_utc": starts[0],
+            "t_start_utc": starts.as_unit(unit),
+        })
+
+    def _odds(self, unit="us"):
+        # begins just before round 1 so every round has a preceding print
+        ts = pd.date_range("2026-03-24T01:59:50Z", periods=4, freq="2min")
+        return pd.DataFrame({
+            "selection": ["team1"] * 4, "market": ["map_winner"] * 4,
+            "map_uid": ["m-1"] * 4, "match_id": [1] * 4, "map_index": [1] * 4,
+            "ts_utc": ts.as_unit(unit), "fair_prob": [0.4, 0.45, 0.5, 0.55],
+            "is_live": [True] * 4,
+        })
+
+    def test_datetime_unit_mismatch_does_not_break_the_join(self):
+        """pandas 3 raises MergeError on datetime64[ns] vs [us]. A bare except
+        in validate() turned that into 'coverage 0.00' on every real map."""
+        from pipeline import align
+        out = align.attach_market(self._panel("ns"), self._odds("us"))
+        self.assertEqual(4, int(out["market_p"].notna().sum()))
+        out = align.attach_market(self._panel("us"), self._odds("ns"))
+        self.assertEqual(4, int(out["market_p"].notna().sum()))
+
+    def test_stale_print_outside_lookback_is_not_attached(self):
+        from pipeline import align
+        odds = self._odds("us")
+        odds["ts_utc"] = odds["ts_utc"] - pd.Timedelta(seconds=3600)
+        out = align.attach_market(self._panel("ns"), odds, lookback_s=600)
+        self.assertEqual(0, int(out["market_p"].notna().sum()))
+
+
+class TestTeamNameMatching(unittest.TestCase):
+    def test_decoration_differences_match(self):
+        from pipeline import align
+        cases = [
+            ("Sangal", "Sangal 1XBET"),
+            ("Morningstar", "MORNING STAR-"),
+            ("MARKandLARRY", "MARKnLARRY"),
+            ("Nemiga", "Nemiga Gaming"),
+        ]
+        for a, b in cases:
+            self.assertTrue(align.same_team(a, b), f"{a!r} should match {b!r}")
+
+    def test_accents_and_suffixes_match(self):
+        from pipeline import align
+        cases = [
+            ("Famalic\u00e3o", "famalicao"),
+            ("G2", "G2 Esports"),
+            ("M1X KS", "m1x"),
+            ("ESC", "ESC Gaming"),
+        ]
+        for a, b in cases:
+            self.assertTrue(align.same_team(a, b), f"{a!r} should match {b!r}")
+
+    def test_different_teams_do_not_match(self):
+        from pipeline import align
+        for a, b in (("Sangal", "Nemiga"), ("Outfit 49", "Phoenix"),
+                     ("STATE", "CSDIILIT")):
+            self.assertFalse(align.same_team(a, b), f"{a!r} must not match {b!r}")
+
+    def test_side_detection_across_rounds(self):
+        from pipeline import align
+        rows = pd.DataFrame({
+            "ct_team_name_resolved": ["Sangal 1XBET", "Nemiga Gaming"],
+            "t_team_name_resolved": ["Nemiga Gaming", "Sangal 1XBET"],
+        })
+        self.assertEqual({"ct", "t"}, align.team1_side(rows, "Sangal"))
+        self.assertEqual({"unknown"}, align.team1_side(rows, "Outfit 49"))
 
 
 class TestDetectionRules(unittest.TestCase):
