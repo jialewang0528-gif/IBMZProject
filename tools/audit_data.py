@@ -43,6 +43,46 @@ def is_num(s):
         return False
 
 
+def profile_jsonl(path, max_rows):
+    """Profile a JSON Lines file: top-level keys, nesting, sample values."""
+    keys = {}
+    lines = 0
+    with open_any(path) as fh:
+        for line in fh:
+            if lines >= max_rows:
+                break
+            line = line.strip()
+            if not line:
+                continue
+            lines += 1
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                keys.setdefault("<unparseable>", {"n": 0, "types": set(), "sample": ""})
+                keys["<unparseable>"]["n"] += 1
+                continue
+            for k, v in obj.items():
+                st = keys.setdefault(k, {"n": 0, "types": set(), "sample": "", "nested": set()})
+                st["n"] += 1
+                st["types"].add(type(v).__name__)
+                if st["sample"] == "":
+                    st["sample"] = str(v)[:60]
+                if isinstance(v, list) and v and isinstance(v[0], dict):
+                    st["nested"].update(list(v[0].keys())[:12])
+                elif isinstance(v, dict):
+                    st["nested"].update(list(v.keys())[:12])
+    cols = []
+    for k, st in sorted(keys.items(), key=lambda kv: -kv[1]["n"]):
+        c = {"name": k, "kind": "/".join(sorted(st["types"])) or "null",
+             "present_pct": round(100 * st["n"] / max(lines, 1), 1),
+             "sample": st["sample"]}
+        if st["nested"]:
+            c["nested_keys"] = sorted(st["nested"])
+        cols.append(c)
+    return {"path": path, "format": "jsonl", "size_mb": round(os.path.getsize(path) / 1e6, 2),
+            "lines_scanned": lines, "hit_row_cap": lines >= max_rows, "columns": cols}
+
+
 def profile(path, max_rows, uniq_cap, max_cols=80):
     size = os.path.getsize(path)
     with open_any(path) as fh:
@@ -158,26 +198,42 @@ def main():
     ap.add_argument("--json", action="store_true", help="JSON only")
     args = ap.parse_args()
 
-    if not os.path.isdir(args.root):
-        sys.exit(f"not a directory: {args.root}")
-
-    files = []
-    for dirpath, _dirs, names in os.walk(args.root):
-        for fn in sorted(names):
-            if fn.endswith((".gz", ".csv")):
-                files.append(os.path.join(dirpath, fn))
+    if os.path.isfile(args.root):
+        files = [args.root]
+    elif os.path.isdir(args.root):
+        files = []
+        for dirpath, dirs, names in os.walk(args.root):
+            dirs[:] = [d for d in dirs if d not in
+                       ("_out_of_scope", ".ipynb_checkpoints", "__pycache__", ".git")]
+            for fn in sorted(names):
+                if fn.endswith((".gz", ".csv")):
+                    files.append(os.path.join(dirpath, fn))
+    else:
+        sys.exit(f"not a file or directory: {args.root}")
     if not files:
         sys.exit(f"no .gz/.csv files under {args.root}")
 
     print(f"# audit of {args.root}: {len(files)} file(s)")
     reports = []
     for path in files:
-        rep = profile(path, args.max_rows, args.uniq_cap)
+        if ".jsonl" in path:
+            rep = profile_jsonl(path, args.max_rows)
+        else:
+            rep = profile(path, args.max_rows, args.uniq_cap)
         rep["roles"] = guess_roles(rep)
         reports.append(rep)
         if args.json:
             continue
         print(f"\n== {rep['path']}")
+        if rep.get("format") == "jsonl":
+            print(f"   JSONL size={rep['size_mb']} MB lines_scanned={rep['lines_scanned']}"
+                  f"{' (CAP)' if rep['hit_row_cap'] else ''}")
+            for c in rep["columns"]:
+                extra = f"present={c['present_pct']}% e.g. {c['sample']}"[:120]
+                print(f"   - {c['name'][:30]:<30} {c['kind']:<18} {extra}")
+                if c.get("nested_keys"):
+                    print(f"       nested: {c['nested_keys'][:12]}")
+            continue
         if "error" in rep:
             print(f"   ERROR: {rep['error']}")
             continue
