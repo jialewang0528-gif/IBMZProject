@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -148,31 +149,69 @@ def build_map(uid: str, odds: pd.DataFrame, inject_rounds: list[int] | None = No
     return matches_entry, series_doc
 
 
+# set once per worker process by _init_worker; building the odds frame is the
+# expensive part and each map needs it
+_WORKER_ODDS: "pd.DataFrame | None" = None
+
+
+def _init_worker() -> None:
+    global _WORKER_ODDS
+    _WORKER_ODDS = io.read_odds()
+
+
+def _build_one(task: tuple) -> tuple:
+    """Build one map in a worker. Never raises: a bad map is a skip with a reason."""
+    uid, inject_map, inject_rounds = task
+    odds = _WORKER_ODDS if _WORKER_ODDS is not None else io.read_odds()
+    inj = inject_rounds if (inject_map and uid == inject_map) else None
+    try:
+        entry, doc = build_map(uid, odds, inj)
+    except Exception as exc:  # noqa: BLE001 - one bad map must not stop the build
+        entry, doc = None, {"map_uid": uid,
+                            "skipped": f"{type(exc).__name__}: {exc}"[:200]}
+    return uid, entry, doc
+
+
 def build(out_dir: Path, limit: int | None = None, inject_map: str | None = None,
-          inject_rounds: list[int] | None = None) -> dict:
+          inject_rounds: list[int] | None = None, jobs: int = 0) -> dict:
     out_dir = Path(out_dir)
     (out_dir / "series").mkdir(parents=True, exist_ok=True)
-    odds = io.read_odds()
     el = io.eligible_maps()
     if limit:
         el = el.head(limit)
 
-    entries, skipped = [], []
-    for _, meta in el.iterrows():
-        uid = str(meta["map_uid"])
-        inj = inject_rounds if (inject_map and uid == inject_map) else None
-        try:
-            entry, doc = build_map(uid, odds, inj)
-        except Exception as exc:  # noqa: BLE001 - one bad map must not stop the build
-            entry, doc = None, {"map_uid": uid,
-                                "skipped": f"{type(exc).__name__}: {exc}"[:200]}
-        if entry is None:
-            skipped.append(doc)
-            continue
-        entries.append(entry)
-        (out_dir / "series" / f"{uid}.json").write_text(json.dumps(doc, indent=1))
+    tasks = [(str(uid), inject_map, inject_rounds)
+             for uid in el["map_uid"].astype(str)]
+    if jobs <= 0:
+        # this box has 3 vCPUs and the work is CPU-bound per map
+        jobs = min(3, os.cpu_count() or 1)
 
-    entries.sort(key=lambda e: (-e["n_alerts"], -e["max_gap"]))
+    entries, skipped = [], []
+
+    def _consume(results) -> None:
+        for uid, entry, doc in results:
+            if entry is None:
+                skipped.append(doc)
+                continue
+            entries.append(entry)
+            (out_dir / "series" / f"{uid}.json").write_text(json.dumps(doc, indent=1))
+
+    if jobs > 1 and len(tasks) > 8:
+        import multiprocessing as mp
+        try:
+            # `with Pool` terminates on exit; consume everything before leaving it
+            with mp.get_context("fork").Pool(jobs, initializer=_init_worker) as pool:
+                _consume(pool.imap_unordered(_build_one, tasks, chunksize=4))
+        except (OSError, ValueError) as exc:
+            print(f"  parallel build unavailable ({exc}); falling back to serial")
+            entries.clear()
+            skipped.clear()
+            _consume(map(_build_one, tasks))
+    else:
+        _consume(map(_build_one, tasks))
+
+    # map_uid breaks ties so a rebuild is byte-identical regardless of core count
+    entries.sort(key=lambda e: (-e["n_alerts"], -e["max_gap"], e["map_uid"]))
     (out_dir / "matches.json").write_text(json.dumps(entries, indent=1))
 
     metrics_path = Path("models/artifacts/metrics.json")
@@ -233,11 +272,14 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--inject-map")
     ap.add_argument("--inject-rounds", default="14,15,16")
+    ap.add_argument("--jobs", type=int, default=0,
+                    help="parallel workers (0 = auto, capped at 3: this box has 3 vCPUs)")
     ap.add_argument("--static-only", action="store_true",
                     help="same bundle; static-only is the fallback the page uses")
     args = ap.parse_args()
     rounds = [int(x) for x in args.inject_rounds.split(",") if x.strip()]
-    build(Path(args.out), args.limit, args.inject_map, rounds if args.inject_map else None)
+    build(Path(args.out), args.limit, args.inject_map,
+          rounds if args.inject_map else None, jobs=args.jobs)
     validate(Path(args.out))
 
 
