@@ -6,8 +6,11 @@ __pycache__/
 *.dem
 *.gguf
 *.gz
+*.joblib
 *.parquet
 cs2_betting_data/
 data/
 models/
+models/artifacts/
 out/
+site/data/

@@ -1,6 +1,14 @@
 # CS2 Match-Fixing Detection — Hardened Spec
 
-Oct 17, 2026 · @tman · v2 (supersedes v1 of the same date)
+Oct 17, 2026 · @tman · v2.1 (supersedes v2; v2 superseded v1 of the same date)
+
+**v2.1 changes** (made during implementation, all reflected below): alerting moved
+from the absolute market−model gap to the **residual** gap (absolute minus that
+map's opening offset), because a globally trained model carries a per-map bias and
+the absolute gap alerts on every round of every map; `map_name` was dropped from
+the feature set (a one-hot on map identity memorises the per-map label); the HTTP
+layer is stdlib `http.server` (no Flask wheel needed on s390x); thresholds remain
+provisional until calibrated on the real 297 maps.
 
 **Status:** implementation-ready. Every claim below is either measurable in the demo, measured already, or explicitly marked as deferred with the reason. Numbers marked *(measured)* were produced on the LinuxONE container on Oct 17, 2026; the rest are marked *(estimate)* or *(assumption)*.
 
@@ -153,15 +161,19 @@ model_p[r]   = P(team1 wins map m | state at start of round r)      # component 
 market_p[r]  = fair_prob of the map_winner selection for team1,
                taken from the last print with ts <= t(r)             # component B
 gap[r]       = market_p[r] - model_p[r]                             # signed, probability points
+baseline     = median(gap[first 3 rounds])                           # this map's own offset
+residual[r]  = gap[r] - baseline                                     # what alerts
 ```
 
 Because the model is calibrated, `gap` is in real probability points and can be thresholded directly. This is the licence that absolute thresholds require, and it is why calibration is a milestone and not a nice-to-have.
+
+**Why the residual, not the gap:** a model trained across many matches is calibrated *in aggregate* but carries a per-map offset — it may sit 10–20 points above the market for a whole map. Thresholding `gap` would then fire on every round of every map, which destroys the false-positive story. `residual` measures what the claim actually is: the market moving **away** from where the game state put it, relative to where this map started.
 
 ### 4.2 "The market moved first", operationally
 
 A divergence alert requires **all** of:
 
-1. `|gap[r]| >= 0.15` for at least **2 consecutive** round boundaries (persistence kills single bad prints).
+1. `|residual[r]| >= 0.15` for at least **2 consecutive** round boundaries (persistence kills single bad prints).
 2. The market component moved **before** the round boundary: a price change of ≥ 0.05 within the preceding 10 minutes (D's step detector).
 3. No game event in the game data within the resolution floor that would explain the move (no-news filter): no round won, no plant, no ace/multi-kill spike, no player disconnect.
 

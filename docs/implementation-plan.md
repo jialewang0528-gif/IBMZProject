@@ -43,6 +43,7 @@ cs2_betting_data/{tables/*.csv.gz, odds_table.csv.gz, maps_meta}
 | Item | Decision | Reason |
 |---|---|---|
 | Substrate | plain Docker container `notebook` on `148.100.79.57` | `kubectl` absent; K8s adds nothing visible |
+| HTTP stack | Python stdlib `http.server` (ThreadingHTTPServer) | no Flask wheel for s390x, no PyArrow; zero dependencies beats one apt install |
 | Public port | **`0.0.0.0:38888` — the app owns it** | probe: only 22 and 38888 are reachable from the internet; 8000/8080/5000/9000 timed out |
 | Jupyter | moved to `127.0.0.1:8888`, reached via `ssh -L 8888:localhost:8888` | frees 38888; avoids unauthenticated JupyterLab, which would expose `/home/ibm-user/.git-credentials` |
 | Fallback | `site/` is a complete static bundle; if the API is unreachable the page renders from `site/data/*.json` with a "static mode" banner | covers container death; also the artifact for Cloudflare Pages later |
@@ -306,6 +307,7 @@ hltv_stars (0..2+), map_index
 | `POST /api/score` | live inference via `models.score.score_round_state`; returns `p_logit`, `p_xgb`, `contributions`, `latency_ms`, `arch`, `hostname`, `python` |
 | `GET /api/health` | `{ok, arch, uname, python, models_loaded, n_maps, uptime_s}` |
 | `GET /static/*` | assets |
+| `GET /data/*` | the static fallback bundle (same files the API serves) |
 
 Rules: bind `0.0.0.0:38888`; `threaded=True`; no debug in demo mode; 5s timeout on model load at boot; if artifacts are missing, serve a JSON 503 explaining how to build them (never a stack trace).
 
@@ -342,7 +344,7 @@ Rules: one agent per task; **a task may only touch files listed in its scope**; 
 | T3 | Train + calibrate | `models/train.py` | T2 | 1.5 | `--cv` prints logit & xgb Brier ≤ 0.21, artifacts saved |
 | T4 | Scoring + attribution | `models/score.py` | T3 | 0.75 | contribution sum ≈ logit − intercept within 1e-9 |
 | T5 | Market series + quality gate | `pipeline/market.py` | T1 | 1.0 | quality dict printed; unusable maps excluded with reason |
-| T6 | Detection (gap, D, C) | `pipeline/detect.py` | T4, T5 | 1.5 | 1 alert on injected map, 0 on 10 clean maps |
+| T6 | Detection (residual gap, D, C) | `pipeline/detect.py` | T4, T5 | 1.5 | paired ablation passes: injected map alerts and an alert span covers the injected rounds; control rate reported, not asserted (thresholds are provisional) |
 | T7 | Injection | `pipeline/inject.py` | T5 | 0.5 | injected rows flagged; originals unchanged |
 | T8 | Artifact build | `pipeline/build_artifacts.py` | T6, T7 | 1.0 | bundle validates, < 20 MB, ≥ 200 maps |
 | T9 | API server | `server/app.py` | T8 (contract only) | 1.0 | `/api/health` shows s390x; `/api/score` < 50 ms |

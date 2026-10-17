@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>CS2 Integrity Watch — divergence monitor</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="dot"></span>
+    <h1>CS2 Integrity Watch</h1>
+    <span class="sub">market vs game-state divergence</span>
+  </div>
+  <div id="health" class="chip">connecting…</div>
+</header>
+
+<div id="banner" class="banner">
+  <strong>Demonstration system.</strong> Part of the market feed is simulated and labelled
+  <code>injected</code>. Divergence signals are investigative leads only —
+  <strong>no finding is made about any person.</strong>
+  Resolution floor: <span id="floor">60</span>s; market timestamps are 1-minute snapshots.
+</div>
+
+<main>
+  <aside>
+    <div class="aside-head">
+      <input id="search" placeholder="filter by team, event or map" autocomplete="off">
+      <div class="counts" id="counts"></div>
+    </div>
+    <ul id="matches" class="matches"></ul>
+  </aside>
+
+  <section id="detail">
+    <div class="empty" id="empty">
+      <h2>Select a map</h2>
+      <p>Maps are ranked by alert count, then by largest divergence.</p>
+    </div>
+
+    <article id="map" hidden>
+      <div class="map-head">
+        <div>
+          <h2 id="teams"></h2>
+          <div class="meta" id="meta"></div>
+        </div>
+        <div class="sev" id="sev"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Win probability</h3>
+          <div class="legend">
+            <span class="k model"></span> model
+            <span class="k market"></span> market
+            <span class="k inj"></span> injected
+          </div>
+        </div>
+        <svg id="chart" viewBox="0 0 820 260" preserveAspectRatio="none" role="img"
+             aria-label="model and market win probability by round"></svg>
+        <svg id="gapchart" viewBox="0 0 820 90" preserveAspectRatio="none" role="img"
+             aria-label="gap by round"></svg>
+      </div>
+
+      <div class="panel" id="alerts-panel">
+        <div class="panel-head"><h3>Alerts</h3><span class="hint" id="alert-count"></span></div>
+        <div id="alerts"></div>
+      </div>
+
+      <div class="grid2">
+        <div class="panel">
+          <div class="panel-head"><h3>Player deviation</h3>
+            <span class="hint">within-match self-deviation, corroboration only</span></div>
+          <table class="players" id="players"></table>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h3>Live inference</h3>
+            <span class="hint">computed at request time on this host</span></div>
+          <div class="live">
+            <div class="live-row">
+              <label>round <input id="lr-round" type="number" min="1" value="14"></label>
+              <label>score <input id="lr-s1" type="number" min="0" value="7"> :
+                     <input id="lr-s2" type="number" min="0" value="6"></label>
+            </div>
+            <div class="live-row">
+              <label>equip T1 <input id="lr-e1" type="number" value="12500"></label>
+              <label>equip T2 <input id="lr-e2" type="number" value="11250"></label>
+            </div>
+            <div class="live-row">
+              <label>buy T1 <select id="lr-b1"><option>full</option><option>semi</option><option>force</option><option>eco</option></select></label>
+              <label>buy T2 <select id="lr-b2"><option>semi</option><option>full</option><option>force</option><option>eco</option></select></label>
+            </div>
+            <button id="lr-go">Score this state</button>
+            <pre id="lr-out" class="out">—</pre>
+          </div>
+        </div>
+      </div>
+    </article>
+  </section>
+</main>
+
+<footer>
+  <span id="footer-note">game data: opencs2 dataset (CC-BY-4.0) · market data: Polymarket public API</span>
+  <span id="mode" class="mode"></span>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
