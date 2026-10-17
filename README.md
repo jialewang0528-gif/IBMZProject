@@ -10,6 +10,7 @@ investigate. **An alert is not a verdict.**
 | [`cs2-match-fixing-spec.md`](cs2-match-fixing-spec.md) | the product spec: scope, measurement rule, what the demo proves and does not |
 | [`docs/implementation-plan.md`](docs/implementation-plan.md) | module spec, frozen JSON contracts, task list, deployment |
 | [`deploy/deploy.md`](deploy/deploy.md) | runbook: ports, recovery after a container restart, security notes |
+| [`docs/HANDOFF.md`](docs/HANDOFF.md) | measured environment facts, traps already hit, state at handoff, what to do first |
 
 ## What is in here
 

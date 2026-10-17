@@ -54,7 +54,7 @@ class TestRepoPackaging(unittest.TestCase):
         "server/app.py", "site/index.html", "site/static/app.js",
         "site/static/style.css", "deploy/start_all.sh", "deploy/deploy.md",
         "tests/test_pipeline.py", "tools/make_fixture.py",
-        "cs2-match-fixing-spec.md", "docs/implementation-plan.md",
+        "cs2-match-fixing-spec.md", "docs/implementation-plan.md", "docs/HANDOFF.md",
     ]
 
     def test_all_required_files_are_tracked(self):
