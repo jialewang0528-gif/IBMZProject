@@ -61,10 +61,17 @@ def load_dataset(limit: int | None = None) -> tuple[pd.DataFrame, pd.Series, lis
     return X, y, list(X.columns), groups
 
 
-def split_groups(groups: list[str], seed: int = 7) -> tuple[np.ndarray, np.ndarray]:
-    """Split by match id; fall back to row split if there is only one match."""
+def split_groups(groups: list[str], seed: int = 7,
+                 holdout_frac: float = 0.3) -> tuple[np.ndarray, np.ndarray]:
+    """Split by match id; fall back to row split if there is only one match.
+
+    Previously this held out `sorted(uniq)[-1:]` - a single match - so "--cv"
+    reported Brier on ~40 rows of one series, usually with a single class in the
+    holdout. Any match-id split must hold out a share of matches, not the last
+    one, or the number it prints is noise being presented as a metric.
+    """
     g = np.array(groups)
-    uniq = sorted(set(groups))
+    uniq = np.array(sorted(set(groups)))
     if len(uniq) < 2:
         idx = np.arange(len(g))
         rng = np.random.default_rng(seed)
@@ -73,8 +80,11 @@ def split_groups(groups: list[str], seed: int = 7) -> tuple[np.ndarray, np.ndarr
         train = np.zeros(len(g), dtype=bool)
         train[idx[:cut]] = True
         return train, ~train
-    holdout = set(sorted(uniq)[-1:])
-    mask = np.array([x in holdout for x in g])
+    rng = np.random.default_rng(seed)
+    order = rng.permutation(len(uniq))
+    n_holdout = max(1, int(round(len(uniq) * holdout_frac)))
+    holdout = set(uniq[order[:n_holdout]])
+    mask = np.isin(g, list(holdout))
     return ~mask, mask
 
 

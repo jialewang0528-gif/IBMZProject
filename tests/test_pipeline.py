@@ -249,6 +249,8 @@ class TestTeamNameMatching(unittest.TestCase):
             ("G2", "G2 Esports"),
             ("M1X KS", "m1x"),
             ("ESC", "ESC Gaming"),
+            ("Vitality", "Team Vitality"),
+            ("Spirit", "Team Spirit"),
         ]
         for a, b in cases:
             self.assertTrue(align.same_team(a, b), f"{a!r} should match {b!r}")

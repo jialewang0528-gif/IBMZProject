@@ -418,7 +418,8 @@ def same_team(a, b) -> bool:
 
     The feeds differ in decoration and legal suffix, never in the core name:
     maps_meta says 'G2', the demo says 'G2 Esports'; maps_meta says 'M1X KS',
-    the demo says 'm1x'. So a leading run of whole words may be dropped, but a
+    the demo says 'm1x'; maps_meta says 'Vitality', the demo says 'Team
+    Vitality'. So a leading or trailing run of whole words may be dropped, but a
     bare substring hit is not enough - it would collide Navi with Navi Junior.
     """
     ta, tb = _name_tokens(a), _name_tokens(b)
@@ -427,8 +428,8 @@ def same_team(a, b) -> bool:
     if _team_aliases(a) & _team_aliases(b):
         return True
     shorter, longer = (ta, tb) if len(ta) <= len(tb) else (tb, ta)
-    # the shorter name must be a whole-word prefix of the longer one
-    return longer[:len(shorter)] == shorter
+    n = len(shorter)
+    return longer[:n] == shorter or longer[-n:] == shorter
 
 
 def team1_side(rows: pd.DataFrame, team1) -> set[str]:
