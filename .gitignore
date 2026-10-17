@@ -1,0 +1,9 @@
+*.gguf
+.ipynb_checkpoints/
+__pycache__/
+*.gguf
+*.csv
+.ipynb_checkpoints/
+__pycache__/
+.*
+!.gitignore

@@ -1,0 +1,184 @@
+/* ============================================================
+   IBM Z / LinuxONE — JupyterLab & Notebook 7 custom theme
+   Overrides JupyterLab Dark with IBM Blue-tinted backgrounds
+   and injects IBM branding watermarks.
+
+   Deployed to:
+     - /home/ibm-user/.jupyter/custom/custom.css
+     - /opt/venv/lib/python3.12/site-packages/notebook/custom/custom.css
+   ============================================================ */
+
+/* ── IBM Blue-tinted dark backgrounds ─────────────────────────────────────
+   Replace the pure grey JupyterLab Dark layout layers with deep IBM blue.
+   IBM Carbon dark backgrounds:  #13131a → #1a1d2e → #20253a → #2d3348
+   Brand blues: #0f62fe (IBM Blue 60), #4589ff (IBM Blue 50), #78a9ff (Blue 40)
+*/
+:root {
+    /* Background layers — deep blue-navy tint instead of pure grey */
+    --jp-layout-color0:           #0d112b;   /* deepest: app shell base     */
+    --jp-layout-color1:           #161b2b;   /* notebook cell area          */
+    --jp-layout-color2:           #1e253b;   /* sidebars, panels            */
+    --jp-layout-color3:           #26304f;   /* hover / secondary panels    */
+    --jp-layout-color4:           #30405f;   /* dividers, tab bars          */
+
+    /* Brand — replace Material blue with IBM Blue */
+    --jp-brand-color0:            #0043ce;   /* IBM Blue 70                 */
+    --jp-brand-color1:            #0f62fe;   /* IBM Blue 60 (primary)       */
+    --jp-brand-color2:            #4589ff;   /* IBM Blue 50                 */
+    --jp-brand-color3:            #78a9ff;   /* IBM Blue 40                 */
+    --jp-brand-color4:            #a6c8ff;   /* IBM Blue 30                 */
+
+    /* Borders — blue-grey tint */
+    --jp-border-color0:           #2a3550;
+    --jp-border-color1:           #2a3550;
+    --jp-border-color2:           #1e2a40;
+    --jp-border-color3:           #121c2e;
+
+    /* Cell editor areas */
+    --jp-cell-editor-background:         #161b27;
+    --jp-cell-editor-active-background:  #0d1117;
+    --jp-cell-editor-border-color:       #2a3550;
+    --jp-cell-editor-active-border-color:#0f62fe;
+
+    /* Toolbar / statusbar */
+    --jp-toolbar-background:      #161b27;
+    --jp-toolbar-border-color:    #2a3550;
+    --jp-toolbar-active-background:#0d1117;
+
+    /* Input fields */
+    --jp-input-background:        #1e2536;
+    --jp-input-border-color:      #2a3550;
+    --jp-input-active-border-color:#0f62fe;
+
+    /* Scrollbar */
+    --jp-scrollbar-background-color: #161b27;
+    --jp-scrollbar-thumb-color:       60, 80, 120;
+
+    /* Focus outline — IBM Blue */
+    --jp-focus-outline-color:     #4589ff;
+
+    /* Accept/action buttons */
+    --jp-accept-color-normal:     #0f62fe;
+    --jp-accept-color-hover:      #0043ce;
+    --jp-accept-color-active:     #002d9c;
+
+    /* Notebook cell prompt colour */
+    --jp-cell-inprompt-font-color:  #4589ff;
+
+    /* Links */
+    --jp-content-link-color:        #78a9ff;
+    --jp-content-link-hover-color:  #a6c8ff;
+
+    /* Selection highlight */
+    --jp-notebook-multiselected-color: rgba(15, 98, 254, 0.22);
+    --jp-editor-selected-focused-background: rgba(15, 98, 254, 0.20);
+
+    /* Code mirror syntax — keep readable on blue-dark bg */
+    --jp-mirror-editor-keyword-color:   #42be65;   /* IBM Green 40            */
+    --jp-mirror-editor-def-color:       #78a9ff;   /* IBM Blue 40             */
+    --jp-mirror-editor-variable-color:  #dde1e7;
+    --jp-mirror-editor-variable-2-color:#4589ff;
+    --jp-mirror-editor-number-color:    #08bdba;   /* IBM Teal 40             */
+    --jp-mirror-editor-string-color:    #ff8389;   /* IBM Red 40 (warm)       */
+    --jp-mirror-editor-comment-color:   #6f7a8b;
+    --jp-mirror-editor-operator-color:  #be95ff;   /* IBM Purple 40           */
+    --jp-mirror-editor-builtin-color:   #3ddbd9;   /* IBM Cyan 40             */
+    --jp-mirror-editor-punctuation-color:#a6c8ff;
+}
+
+/* ── Menu bar & top chrome ─────────────────────────────────────────────── */
+#jp-top-bar,
+.jp-Toolbar,
+.lm-MenuBar,
+.jp-MainAreaWidget .jp-Toolbar {
+    background: #161b27 !important;
+    border-bottom: 1px solid #2a3550 !important;
+}
+
+/* ── Left / right sidebar panels ──────────────────────────────────────── */
+.jp-SideBar,
+.jp-FileBrowser,
+.jp-SideBar .lm-TabBar {
+    background: #1e2536 !important;
+}
+
+/* ── Active tab indicator — IBM Blue ──────────────────────────────────── */
+.lm-TabBar-tab.lm-mod-current,
+.jp-DirListing-item.jp-mod-selected {
+    border-top: 2px solid #0f62fe !important;
+    background: #161b27 !important;
+}
+
+/* ── Notebook cell selected border ────────────────────────────────────── */
+.jp-Cell.jp-mod-selected .jp-InputArea,
+.jp-Cell.jp-mod-active .jp-InputArea {
+    border-left: 3px solid #0f62fe !important;
+}
+
+/* ── Notebook 7 (classic) page-level background ───────────────────────── */
+body,
+#notebook-container,
+div.cell,
+div.input_area,
+div.CodeMirror {
+    background-color: #161b27 !important;
+}
+div.cell.selected,
+div.cell.jupyter-soft-selected {
+    border-left: 3px solid #0f62fe !important;
+    background-color: #1e2536 !important;
+}
+
+/* ── IBM Z branding badge — top-right ─────────────────────────────────── */
+body::before {
+    content: "IBM Z / LinuxONE  \2022  AI Acceleration";
+    position: fixed;
+    top: 8px;
+    right: 16px;
+    font-family: 'IBM Plex Sans', 'Segoe UI', Arial, sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    color: #4589ff;
+    opacity: 0.80;
+    pointer-events: none;
+    z-index: 100000;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+/* ── IBM 8-bar logo watermark — bottom-right ──────────────────────────── */
+body::after {
+    content: "";
+    position: fixed;
+    bottom: 18px;
+    right: 18px;
+    width: 120px;
+    height: 42px;
+    opacity: 0.15;
+    pointer-events: none;
+    z-index: 100000;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='27' viewBox='50 165 412 182'%3E<rect x='50' y='150' width='412' height='210' fill='lightgray' stroke='lightgray' stroke-width='0' rx='10' ry='10' /><path fill='none' stroke='%231f70c1' stroke-width='12' d='M54 332h404M54 311h404m-224-22h202m-359 0h124M77 267h359M77 246h359m-202-22h202m-359 0h124M54 202h404M54 180h404'/><path fill='lightgray' d='M111 215h56v81h-56zm33-42v166h-11V173zm197 0l28 76 26-76zm-6 72v94h67v-94l-33 93zm-105-71c34 0 62 49 17 82 44 32 18 82-17 82v3h49v-36l22-10v-77l-22-10v-36h-49z'/>%3C/svg%3E");
+}
+
+/* ── JupyterLab shell pseudo — branding stays above lab chrome ─────────── */
+#jp-main-dock-panel::before,
+.jp-LabShell::before {
+    content: "IBM Z / LinuxONE  \2022  AI Acceleration";
+    position: fixed;
+    top: 8px;
+    right: 16px;
+    font-family: 'IBM Plex Sans', 'Segoe UI', Arial, sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    color: #4589ff;
+    opacity: 0.80;
+    pointer-events: none;
+    z-index: 100000;
+    text-transform: uppercase;
+    white-space: nowrap;
+}

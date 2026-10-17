@@ -1,0 +1,1598 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<PMML xmlns="http://www.dmg.org/PMML-4_4" xmlns:data="http://jpmml.org/jpmml-model/InlineTable" version="4.4">
+	<Header>
+		<Application name="SkLearn2PMML package" version="0.122.2"/>
+		<Timestamp>2025-09-22T13:11:46Z</Timestamp>
+	</Header>
+	<DataDictionary>
+		<DataField name="Is_Risky_Loan" optype="categorical" dataType="integer">
+			<Value value="0"/>
+			<Value value="1"/>
+		</DataField>
+		<DataField name="Open_End_Line_of_Credit" optype="categorical" dataType="string">
+			<Value value="Exempt"/>
+			<Value value="Not an open-end line of credit"/>
+			<Value value="Open-end line of credit"/>
+		</DataField>
+		<DataField name="Gross_Annual_Income(in dollars)" optype="continuous" dataType="double"/>
+		<DataField name="Debt_To_Income_Ratio" optype="continuous" dataType="double"/>
+		<DataField name="Applicant_Age" optype="continuous" dataType="double"/>
+		<DataField name="FICO_Score" optype="continuous" dataType="double"/>
+		<DataField name="Price_to_Rent_Ratio" optype="continuous" dataType="double"/>
+		<DataField name="Credit_Utilization_Ratio" optype="continuous" dataType="double"/>
+	</DataDictionary>
+	<MiningModel functionName="classification" algorithmName="XGBoost (GBTree)" x-mathContext="float">
+		<MiningSchema>
+			<MiningField name="Is_Risky_Loan" usageType="target"/>
+			<MiningField name="Open_End_Line_of_Credit"/>
+			<MiningField name="Gross_Annual_Income(in dollars)"/>
+			<MiningField name="Debt_To_Income_Ratio"/>
+			<MiningField name="Applicant_Age"/>
+			<MiningField name="FICO_Score"/>
+			<MiningField name="Price_to_Rent_Ratio"/>
+			<MiningField name="Credit_Utilization_Ratio"/>
+		</MiningSchema>
+		<Segmentation multipleModelMethod="modelChain" missingPredictionTreatment="returnMissing">
+			<Segment id="1">
+				<True/>
+				<MiningModel functionName="regression" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="Open_End_Line_of_Credit"/>
+						<MiningField name="Gross_Annual_Income(in dollars)"/>
+						<MiningField name="Debt_To_Income_Ratio"/>
+						<MiningField name="Applicant_Age"/>
+						<MiningField name="Credit_Utilization_Ratio"/>
+						<MiningField name="FICO_Score"/>
+						<MiningField name="Price_to_Rent_Ratio"/>
+					</MiningSchema>
+					<Output>
+						<OutputField name="xgbValue" optype="continuous" dataType="float" isFinalResult="false"/>
+					</Output>
+					<Targets>
+						<Target rescaleConstant="-0.42424232"/>
+					</Targets>
+					<LocalTransformations>
+						<DerivedField name="standardScaler(FICO_Score)" optype="continuous" dataType="double">
+							<Apply function="/">
+								<Apply function="-">
+									<FieldRef field="FICO_Score"/>
+									<Constant dataType="double">768.708954456667</Constant>
+								</Apply>
+								<Constant dataType="double">43.55067193530939</Constant>
+							</Apply>
+						</DerivedField>
+						<DerivedField name="standardScaler(Price_to_Rent_Ratio)" optype="continuous" dataType="double">
+							<Apply function="/">
+								<Apply function="-">
+									<FieldRef field="Price_to_Rent_Ratio"/>
+									<Constant dataType="double">13.074123573558136</Constant>
+								</Apply>
+								<Constant dataType="double">2.2238925901768796</Constant>
+							</Apply>
+						</DerivedField>
+						<DerivedField name="float(standardScaler(FICO_Score))" optype="continuous" dataType="float">
+							<FieldRef field="standardScaler(FICO_Score)"/>
+						</DerivedField>
+						<DerivedField name="float(standardScaler(Price_to_Rent_Ratio))" optype="continuous" dataType="float">
+							<FieldRef field="standardScaler(Price_to_Rent_Ratio)"/>
+						</DerivedField>
+					</LocalTransformations>
+					<Segmentation multipleModelMethod="sum" missingPredictionTreatment="returnMissing">
+						<Segment id="1">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.08270877">
+									<True/>
+									<Node score="0.12641232">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="2">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.08011198">
+									<True/>
+									<Node score="0.11733811">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="3">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.07779338">
+									<True/>
+									<Node score="0.109882176">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="4">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.07571284">
+									<True/>
+									<Node score="0.10365057">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="5">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.07383754">
+									<True/>
+									<Node score="0.09836719">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="6">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.072140455">
+									<True/>
+									<Node score="0.09383586">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="7">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(Price_to_Rent_Ratio))"/>
+								</MiningSchema>
+								<Node score="0.089908965">
+									<True/>
+									<Node score="-0.07059908">
+										<SimplePredicate field="float(standardScaler(Price_to_Rent_Ratio))" operator="lessThan" value="3.1143036"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="8">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(Price_to_Rent_Ratio))"/>
+								</MiningSchema>
+								<Node score="0.08647697">
+									<True/>
+									<Node score="-0.06919455">
+										<SimplePredicate field="float(standardScaler(Price_to_Rent_Ratio))" operator="lessThan" value="3.1143036"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="9">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.06791088">
+									<True/>
+									<Node score="0.08345441">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="10">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.066734485">
+									<True/>
+									<Node score="0.08077525">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="11">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.065653704">
+									<True/>
+									<Node score="0.078386694">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="12">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.06465851">
+									<True/>
+									<Node score="0.07624574">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="13">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.063740246">
+									<True/>
+									<Node score="0.07431866">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="14">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.06289125">
+									<True/>
+									<Node score="0.07257635">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="15">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.06210499">
+									<True/>
+									<Node score="0.070995055">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="16">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(Price_to_Rent_Ratio))"/>
+								</MiningSchema>
+								<Node score="0.06955574">
+									<True/>
+									<Node score="-0.06137553">
+										<SimplePredicate field="float(standardScaler(Price_to_Rent_Ratio))" operator="lessThan" value="3.1143036"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="17">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.060697783">
+									<True/>
+									<Node score="0.06824111">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="18">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.060067173">
+									<True/>
+									<Node score="0.067037255">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="19">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="Open_End_Line_of_Credit"/>
+									<MiningField name="Debt_To_Income_Ratio"/>
+									<MiningField name="Applicant_Age"/>
+									<MiningField name="Gross_Annual_Income(in dollars)"/>
+								</MiningSchema>
+								<LocalTransformations>
+									<DerivedField name="encoder(Open_End_Line_of_Credit)" optype="categorical" dataType="integer">
+										<MapValues outputColumn="data:output">
+											<FieldColumnPair field="Open_End_Line_of_Credit" column="data:input"/>
+											<InlineTable>
+												<row>
+													<data:input>Exempt</data:input>
+													<data:output>0</data:output>
+												</row>
+												<row>
+													<data:input>Not an open-end line of credit</data:input>
+													<data:output>1</data:output>
+												</row>
+												<row>
+													<data:input>Open-end line of credit</data:input>
+													<data:output>2</data:output>
+												</row>
+											</InlineTable>
+										</MapValues>
+									</DerivedField>
+									<DerivedField name="standardScaler(Gross_Annual_Income(in dollars))" optype="continuous" dataType="double">
+										<Apply function="/">
+											<Apply function="-">
+												<FieldRef field="Gross_Annual_Income(in dollars)"/>
+												<Constant dataType="double">157.620039580549</Constant>
+											</Apply>
+											<Constant dataType="double">406.2722689044927</Constant>
+										</Apply>
+									</DerivedField>
+									<DerivedField name="standardScaler(Debt_To_Income_Ratio)" optype="continuous" dataType="double">
+										<Apply function="/">
+											<Apply function="-">
+												<FieldRef field="Debt_To_Income_Ratio"/>
+												<Constant dataType="double">38.12531227511052</Constant>
+											</Apply>
+											<Constant dataType="double">11.246510215963784</Constant>
+										</Apply>
+									</DerivedField>
+									<DerivedField name="standardScaler(Applicant_Age)" optype="continuous" dataType="double">
+										<Apply function="/">
+											<Apply function="-">
+												<FieldRef field="Applicant_Age"/>
+												<Constant dataType="double">44.458581782666805</Constant>
+											</Apply>
+											<Constant dataType="double">14.836896607417929</Constant>
+										</Apply>
+									</DerivedField>
+									<DerivedField name="continuous(encoder(Open_End_Line_of_Credit))" optype="continuous" dataType="integer">
+										<FieldRef field="encoder(Open_End_Line_of_Credit)"/>
+									</DerivedField>
+									<DerivedField name="float(standardScaler(Debt_To_Income_Ratio))" optype="continuous" dataType="float">
+										<FieldRef field="standardScaler(Debt_To_Income_Ratio)"/>
+									</DerivedField>
+									<DerivedField name="float(standardScaler(Applicant_Age))" optype="continuous" dataType="float">
+										<FieldRef field="standardScaler(Applicant_Age)"/>
+									</DerivedField>
+									<DerivedField name="float(standardScaler(Gross_Annual_Income(in dollars)))" optype="continuous" dataType="float">
+										<FieldRef field="standardScaler(Gross_Annual_Income(in dollars))"/>
+									</DerivedField>
+								</LocalTransformations>
+								<Node score="0.064288795">
+									<True/>
+									<Node score="0.06592092">
+										<SimplePredicate field="continuous(encoder(Open_End_Line_of_Credit))" operator="lessThan" value="1"/>
+										<Node score="-0.059323885">
+											<SimplePredicate field="float(standardScaler(Debt_To_Income_Ratio))" operator="lessThan" value="0.16669062"/>
+										</Node>
+									</Node>
+									<Node score="-0.037681412">
+										<SimplePredicate field="continuous(encoder(Open_End_Line_of_Credit))" operator="lessThan" value="2"/>
+										<Node score="-0.059479386">
+											<SimplePredicate field="float(standardScaler(Debt_To_Income_Ratio))" operator="lessThan" value="1.9405742"/>
+										</Node>
+										<Node score="-0.058311787">
+											<SimplePredicate field="float(standardScaler(Applicant_Age))" operator="lessThan" value="2.3280756"/>
+										</Node>
+										<Node score="0.06268434">
+											<SimplePredicate field="float(standardScaler(Gross_Annual_Income(in dollars)))" operator="lessThan" value="-0.33135423"/>
+										</Node>
+									</Node>
+									<Node score="-0.033522885">
+										<SimplePredicate field="float(standardScaler(Debt_To_Income_Ratio))" operator="lessThan" value="-0.011142326"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="20">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.058931995">
+									<True/>
+									<Node score="0.06491477">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="21">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05842021">
+									<True/>
+									<Node score="0.063976385">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="22">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.057941735">
+									<True/>
+									<Node score="0.063109934">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="23">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.057493895">
+									<True/>
+									<Node score="0.062306978">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="24">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.057074457">
+									<True/>
+									<Node score="0.061563015">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="25">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05668127">
+									<True/>
+									<Node score="0.06087165">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="26">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05631231">
+									<True/>
+									<Node score="0.06022897">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="27">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05596578">
+									<True/>
+									<Node score="0.059629966">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="28">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.055640258">
+									<True/>
+									<Node score="0.059071828">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="29">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05533406">
+									<True/>
+									<Node score="0.058550447">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="30">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05504604">
+									<True/>
+									<Node score="0.058063187">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="31">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.054774728">
+									<True/>
+									<Node score="0.0576077">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="32">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.054519232">
+									<True/>
+									<Node score="0.057179954">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="33">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(Price_to_Rent_Ratio))"/>
+								</MiningSchema>
+								<Node score="0.056780268">
+									<True/>
+									<Node score="-0.054278295">
+										<SimplePredicate field="float(standardScaler(Price_to_Rent_Ratio))" operator="lessThan" value="3.1143036"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="34">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.054051198">
+									<True/>
+									<Node score="0.056404766">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="35">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05383685">
+									<True/>
+									<Node score="0.056052398">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="36">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.053634513">
+									<True/>
+									<Node score="0.055720765">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="37">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(Price_to_Rent_Ratio))"/>
+								</MiningSchema>
+								<Node score="0.0554094">
+									<True/>
+									<Node score="-0.05344341">
+										<SimplePredicate field="float(standardScaler(Price_to_Rent_Ratio))" operator="lessThan" value="3.1143036"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="38">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05326289">
+									<True/>
+									<Node score="0.055116184">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="39">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05309221">
+									<True/>
+									<Node score="0.05484053">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="40">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05293081">
+									<True/>
+									<Node score="0.054580577">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="41">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.052778203">
+									<True/>
+									<Node score="0.05433581">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="42">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.052633792">
+									<True/>
+									<Node score="0.05410452">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="43">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.052496996">
+									<True/>
+									<Node score="0.053886663">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="44">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05236752">
+									<True/>
+									<Node score="0.053681713">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="45">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05224481">
+									<True/>
+									<Node score="0.05348528">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="46">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.052128553">
+									<True/>
+									<Node score="0.053302865">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="47">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.052018423">
+									<True/>
+									<Node score="0.053128053">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="48">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.051913954">
+									<True/>
+									<Node score="0.052965533">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="49">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.051814772">
+									<True/>
+									<Node score="0.052809484">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="50">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.051720794">
+									<True/>
+									<Node score="0.05266266">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="51">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.051631507">
+									<True/>
+									<Node score="0.052522328">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="52">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.051546752">
+									<True/>
+									<Node score="0.05239156">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="53">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(Price_to_Rent_Ratio))"/>
+								</MiningSchema>
+								<Node score="0.052267767">
+									<True/>
+									<Node score="-0.051466465">
+										<SimplePredicate field="float(standardScaler(Price_to_Rent_Ratio))" operator="lessThan" value="3.1143036"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="54">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05138999">
+									<True/>
+									<Node score="0.05214701">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="55">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.051317226">
+									<True/>
+									<Node score="0.05203523">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="56">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.0512482">
+									<True/>
+									<Node score="0.051929593">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="57">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05118252">
+									<True/>
+									<Node score="0.051827718">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="58">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05112003">
+									<True/>
+									<Node score="0.051733073">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="59">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.051060535">
+									<True/>
+									<Node score="0.05164249">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="60">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05100396">
+									<True/>
+									<Node score="0.051556885">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="61">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050949987">
+									<True/>
+									<Node score="0.051472414">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="62">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.0508985">
+									<True/>
+									<Node score="0.051395115">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="63">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(Price_to_Rent_Ratio))"/>
+								</MiningSchema>
+								<Node score="0.051320273">
+									<True/>
+									<Node score="-0.050849337">
+										<SimplePredicate field="float(standardScaler(Price_to_Rent_Ratio))" operator="lessThan" value="3.1143036"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="64">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(Price_to_Rent_Ratio))"/>
+								</MiningSchema>
+								<Node score="0.051250603">
+									<True/>
+									<Node score="-0.050802667">
+										<SimplePredicate field="float(standardScaler(Price_to_Rent_Ratio))" operator="lessThan" value="3.1143036"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="65">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05075818">
+									<True/>
+									<Node score="0.051182754">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="66">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050715316">
+									<True/>
+									<Node score="0.051119067">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="67">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05067466">
+									<True/>
+									<Node score="0.051056024">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="68">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050635464">
+									<True/>
+									<Node score="0.0509979">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="69">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050598193">
+									<True/>
+									<Node score="0.050941724">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="70">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050562333">
+									<True/>
+									<Node score="0.050888985">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="71">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050527908">
+									<True/>
+									<Node score="0.050838638">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="72">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050495084">
+									<True/>
+									<Node score="0.05078865">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="73">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(Price_to_Rent_Ratio))"/>
+								</MiningSchema>
+								<Node score="0.050741147">
+									<True/>
+									<Node score="-0.050463594">
+										<SimplePredicate field="float(standardScaler(Price_to_Rent_Ratio))" operator="lessThan" value="3.1143036"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="74">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05043274">
+									<True/>
+									<Node score="0.050699603">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="75">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050403863">
+									<True/>
+									<Node score="0.050656952">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="76">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050375443">
+									<True/>
+									<Node score="0.050614353">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="77">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050347667">
+									<True/>
+									<Node score="0.050575852">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="78">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050321426">
+									<True/>
+									<Node score="0.0505371">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="79">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(Price_to_Rent_Ratio))"/>
+								</MiningSchema>
+								<Node score="0.050502814">
+									<True/>
+									<Node score="-0.050296184">
+										<SimplePredicate field="float(standardScaler(Price_to_Rent_Ratio))" operator="lessThan" value="3.1143036"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="80">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(Price_to_Rent_Ratio))"/>
+								</MiningSchema>
+								<Node score="0.05046002">
+									<True/>
+									<Node score="-0.050271165">
+										<SimplePredicate field="float(standardScaler(Price_to_Rent_Ratio))" operator="lessThan" value="3.1143036"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="81">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050247192">
+									<True/>
+									<Node score="0.050432105">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="82">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05022366">
+									<True/>
+									<Node score="0.050397005">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="83">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05020066">
+									<True/>
+									<Node score="0.05036608">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="84">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050178673">
+									<True/>
+									<Node score="0.050338384">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="85">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(Price_to_Rent_Ratio))"/>
+								</MiningSchema>
+								<Node score="0.050306942">
+									<True/>
+									<Node score="-0.05015675">
+										<SimplePredicate field="float(standardScaler(Price_to_Rent_Ratio))" operator="lessThan" value="3.1143036"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="86">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050134778">
+									<True/>
+									<Node score="0.0502819">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="87">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050114024">
+									<True/>
+									<Node score="0.050254095">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="88">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(Price_to_Rent_Ratio))"/>
+								</MiningSchema>
+								<Node score="0.05021909">
+									<True/>
+									<Node score="-0.05009331">
+										<SimplePredicate field="float(standardScaler(Price_to_Rent_Ratio))" operator="lessThan" value="3.1143036"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="89">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050072473">
+									<True/>
+									<Node score="0.050188046">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="90">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(Price_to_Rent_Ratio))"/>
+								</MiningSchema>
+								<Node score="0.05016936">
+									<True/>
+									<Node score="-0.05005299">
+										<SimplePredicate field="float(standardScaler(Price_to_Rent_Ratio))" operator="lessThan" value="3.1143036"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="91">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.050032455">
+									<True/>
+									<Node score="0.05014152">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="92">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.05001181">
+									<True/>
+									<Node score="0.050116193">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="93">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.049991835">
+									<True/>
+									<Node score="0.05008728">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="94">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.049971122">
+									<True/>
+									<Node score="0.05006348">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="95">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.049951673">
+									<True/>
+									<Node score="0.050032176">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="96">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.04993167">
+									<True/>
+									<Node score="0.050006878">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="97">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.049910866">
+									<True/>
+									<Node score="0.04998965">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="98">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.049890265">
+									<True/>
+									<Node score="0.049964752">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="99">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="float(standardScaler(FICO_Score))"/>
+								</MiningSchema>
+								<Node score="-0.049868293">
+									<True/>
+									<Node score="0.0499358">
+										<SimplePredicate field="float(standardScaler(FICO_Score))" operator="lessThan" value="-1.5776784"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+						<Segment id="100">
+							<True/>
+							<TreeModel functionName="regression" noTrueChildStrategy="returnLastPrediction" x-mathContext="float">
+								<MiningSchema>
+									<MiningField name="Credit_Utilization_Ratio"/>
+								</MiningSchema>
+								<LocalTransformations>
+									<DerivedField name="standardScaler(Credit_Utilization_Ratio)" optype="continuous" dataType="double">
+										<Apply function="/">
+											<Apply function="-">
+												<FieldRef field="Credit_Utilization_Ratio"/>
+												<Constant dataType="double">25.256887658065178</Constant>
+											</Apply>
+											<Constant dataType="double">6.736996193599725</Constant>
+										</Apply>
+									</DerivedField>
+									<DerivedField name="float(standardScaler(Credit_Utilization_Ratio))" optype="continuous" dataType="float">
+										<FieldRef field="standardScaler(Credit_Utilization_Ratio)"/>
+									</DerivedField>
+								</LocalTransformations>
+								<Node score="0.049777053">
+									<True/>
+									<Node score="-0.049849026">
+										<SimplePredicate field="float(standardScaler(Credit_Utilization_Ratio))" operator="lessThan" value="1.4432415"/>
+									</Node>
+								</Node>
+							</TreeModel>
+						</Segment>
+					</Segmentation>
+				</MiningModel>
+			</Segment>
+			<Segment id="2">
+				<True/>
+				<RegressionModel functionName="classification" normalizationMethod="logit" x-mathContext="float">
+					<MiningSchema>
+						<MiningField name="Is_Risky_Loan" usageType="target"/>
+						<MiningField name="xgbValue"/>
+					</MiningSchema>
+					<Output>
+						<OutputField name="probability(0)" optype="continuous" dataType="float" feature="probability" value="0"/>
+						<OutputField name="probability(1)" optype="continuous" dataType="float" feature="probability" value="1"/>
+					</Output>
+					<RegressionTable intercept="0.0" targetCategory="1">
+						<NumericPredictor name="xgbValue" coefficient="1.0"/>
+					</RegressionTable>
+					<RegressionTable intercept="0.0" targetCategory="0"/>
+				</RegressionModel>
+			</Segment>
+		</Segmentation>
+	</MiningModel>
+</PMML>
