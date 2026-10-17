@@ -38,10 +38,18 @@ python3 -m json.tool site/data/summary.json | head -20
 
 ## 2. Start the site
 
+From the **host**:
+
 ```bash
-docker exec -d notebook /home/ibm-user/IBMZProject/deploy/start_all.sh
+docker exec -d notebook bash /home/ibm-user/IBMZProject/deploy/start_all.sh
 sleep 5
 curl -s http://127.0.0.1:38888/api/health
+```
+
+From **inside** the container (no docker CLI there):
+
+```bash
+cd /home/ibm-user/IBMZProject && bash deploy/start_all.sh
 ```
 
 From an outside machine: <http://148.100.79.57:38888/>

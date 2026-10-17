@@ -15,16 +15,21 @@ mkdir -p "$LOG_DIR"
 cd "$APP_DIR" || { echo "no app dir: $APP_DIR"; exit 1; }
 
 echo "[1/4] freeing port $PUBLIC_PORT"
-PIDS=$( (command -v ss >/dev/null && ss -tlnp 2>/dev/null || true) \
-        | awk -v p=":$PUBLIC_PORT" '$4 ~ p {print $6}' \
-        | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u )
+PIDS=""
+if command -v ss >/dev/null 2>&1; then
+  PIDS=$(ss -tlnp 2>/dev/null | awk -v p=":$PUBLIC_PORT" '$4 ~ p {print $6}' \
+         | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u)
+elif command -v lsof >/dev/null 2>&1; then
+  PIDS=$(lsof -ti "tcp:$PUBLIC_PORT" 2>/dev/null || true)
+fi
 for pid in $PIDS; do
   echo "      killing pid $pid on $PUBLIC_PORT"
   kill "$pid" 2>/dev/null || true
 done
-# also catch anything that still refuses to die by name
-pkill -f "jupyter.*--port $PUBLIC_PORT" 2>/dev/null || true
-sleep 1
+# the listener that matters is Jupyter, which the image entrypoint starts
+pkill -f "jupyter" 2>/dev/null || true
+pkill -f "port $PUBLIC_PORT" 2>/dev/null || true
+sleep 2
 
 echo "[2/4] starting Jupyter on 127.0.0.1:$JUPYTER_PORT (optional)"
 if ! (command -v ss >/dev/null && ss -tln 2>/dev/null | grep -q ":$JUPYTER_PORT"); then

@@ -39,6 +39,39 @@ def run(args: list[str], env: dict, expect: int = 0) -> subprocess.CompletedProc
 
 
 # ---------------------------------------------------------------- pure logic
+class TestRepoPackaging(unittest.TestCase):
+    """A blanket .gitignore rule once excluded the whole models/ package.
+
+    That failure mode is invisible locally and fatal on a fresh clone, so it is
+    checked here: every package the docs promise must be tracked by git.
+    """
+
+    REQUIRED = [
+        "pipeline/io.py", "pipeline/align.py", "pipeline/features.py",
+        "pipeline/market.py", "pipeline/detect.py", "pipeline/inject.py",
+        "pipeline/build_artifacts.py", "pipeline/__init__.py",
+        "models/__init__.py", "models/train.py", "models/score.py",
+        "server/app.py", "site/index.html", "site/static/app.js",
+        "site/static/style.css", "deploy/start_all.sh", "deploy/deploy.md",
+        "tests/test_pipeline.py", "tools/make_fixture.py",
+        "cs2-match-fixing-spec.md", "docs/implementation-plan.md",
+    ]
+
+    def test_all_required_files_are_tracked(self):
+        if not (ROOT / ".git").exists():
+            self.skipTest("not a git checkout")
+        tracked = set(subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True,
+                                     text=True).stdout.split())
+        missing = [f for f in self.REQUIRED if f not in tracked]
+        self.assertFalse(missing, f"not tracked by git (ignored?): {missing}")
+
+    def test_packages_are_importable(self):
+        for pkg in ("pipeline", "models"):
+            proc = subprocess.run([PY, "-c", f"import {pkg}; print('ok')"], cwd=ROOT,
+                                  capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, f"cannot import {pkg}: {proc.stderr[-400:]}")
+
+
 class TestDetectionRules(unittest.TestCase):
     def _panel(self, market, model):
         n = len(market)
@@ -109,10 +142,11 @@ class TestPipelineEndToEnd(unittest.TestCase):
             "PYTHONPATH": str(ROOT),
         }
         run(["tools/make_fixture.py", "--out", str(cls.data), "--maps", "16"], cls.env)
-
-        maps = json.loads((cls.data / "maps_meta.csv.gz").exists() and "[]" or "[]")
-        del maps
-        meta = pd.read_csv(cls.data / "maps_meta.csv.gz")
+        # the real dataset keeps maps_meta inside tables/; mirror that here so the
+        # path-resolution code is exercised rather than assumed
+        (cls.data / "tables").mkdir(exist_ok=True)
+        (cls.data / "maps_meta.csv.gz").rename(cls.data / "tables" / "maps_meta.csv.gz")
+        meta = pd.read_csv(cls.data / "tables" / "maps_meta.csv.gz")
         cls.map_uid = str(meta["map_uid"].iloc[1])
 
         run(["-m", "models.train"], cls.env)
@@ -205,7 +239,9 @@ class TestServer(unittest.TestCase):
             "PYTHONPATH": str(ROOT),
         }
         run(["tools/make_fixture.py", "--out", str(data), "--maps", "8"], cls.env)
-        meta = pd.read_csv(data / "maps_meta.csv.gz")
+        (data / "tables").mkdir(exist_ok=True)
+        (data / "maps_meta.csv.gz").rename(data / "tables" / "maps_meta.csv.gz")
+        meta = pd.read_csv(data / "tables" / "maps_meta.csv.gz")
         cls.map_uid = str(meta["map_uid"].iloc[0])
         run(["-m", "models.train"], cls.env)
         run(["-m", "pipeline.build_artifacts", "--out", str(site / "data")], cls.env)

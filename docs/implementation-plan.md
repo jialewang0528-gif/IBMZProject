@@ -50,6 +50,18 @@ cs2_betting_data/{tables/*.csv.gz, odds_table.csv.gz, maps_meta}
 | Public posture | real names, no gate (decided) | mitigate in UI: no allegation language, simulation banner, `noindex` |
 | Auth | none on public routes; organizer mode is not gated (decided) | recorded as accepted risk |
 
+**Run it from inside the container** (there is no docker CLI inside the image):
+
+```bash
+cd /home/ibm-user/IBMZProject && bash deploy/start_all.sh
+```
+
+or from the host, which is equivalent:
+
+```bash
+docker exec -d notebook bash /home/ibm-user/IBMZProject/deploy/start_all.sh
+```
+
 **Port ownership risk and its mitigation:** Jupyter is started by the image entrypoint. If the container restarts, Jupyter reclaims 38888 and the site dies. `deploy/start_all.sh` is the recovery path and is run after any restart:
 
 ```bash

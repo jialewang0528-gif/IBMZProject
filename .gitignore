@@ -10,7 +10,6 @@ __pycache__/
 *.parquet
 cs2_betting_data/
 data/
-models/
 models/artifacts/
 out/
 site/data/
