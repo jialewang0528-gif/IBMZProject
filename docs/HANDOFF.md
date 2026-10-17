@@ -162,30 +162,44 @@ the host.
 
 ## 7. State at handoff
 
-- 20 tests pass **on the container** (`Ran 20 tests ... OK`).
-- Pipeline, model, server, site, deploy scripts all verified locally against
-  `tools/make_fixture.py` (40 synthetic maps): Brier 0.041, attribution
-  reconstructs the logit to 1e-9, injected divergence detected end to end,
-  server serves all routes, static fallback works.
-- **Not yet run against the real 1,284 maps.** The blocking input is the output of
-  `python3 -m pipeline.align --validate` (tickrate resolved / orientation ok /
-  market coverage median). Without it, nothing downstream on real data is proven.
+**Updated 17 Oct 2026, end of session. Steps 1-4 of the old list are DONE and
+verified on the real data.**
 
-### What to do first
+- ① `pipeline.align --validate` passes: 64-tick everywhere, orientation 94%,
+  clock aligned on 80% of maps, median market coverage 1.00.
+  ③ `build_artifacts` built **1,014 maps, 756 alerts, 269 skipped** (~20 min).
+  ② `models.train --cv`: Brier 0.1775 logit / 0.1768 xgb on a 188-match holdout
+  (target ≤ 0.21; coin flip 0.25).
+  ④ The site is **live at http://148.100.79.57:38888/** and verified from
+  outside: `arch: s390x`, both models loaded, `n_maps: 1014`.
+  ⑤ The video is NOT recorded.
 
-1. Get `--validate` output. If coverage median ≈ 1.0 and all maps resolve, proceed.
-   If a map reports `clock unit unresolved`, the message names all three
-   interpretations — fix the inference, don't tune thresholds.
-2. `models.train --cv` on real data. If Brier > 0.21, reduce features (economy +
-   score only) rather than shipping an uncalibrated model.
-3. `build_artifacts` over every aligned map, pick a demo map, inject rounds 14–16.
-4. `deploy/start_all.sh`, then verify from outside: `curl 148.100.79.57:38888/api/health`
-   must show `"arch": "s390x"` and an `n_maps` equal to the number of maps in
-   `site/data/matches.json` (not a hardcoded pool size).
-5. Record the video (4 min: problem → architecture → replay with injection firing
-   → alert with contributions → limits).
+Remaining: threshold calibration (see §4 and §8), the video, and the open items
+in §8.
 
----
+- 32 tests pass on the container (`Ran 32 tests ... OK`, ~13 s).
+- The deploy path changed: `deploy/start_all.sh` no longer kills Jupyter (that
+  stopped the container). `deploy/deploy_host.sh` does the swap from the host.
+  Read `deploy/deploy.md` before touching ports.
+- Demo map: **Legacy vs MOUZ, IEM Rio 2026, de_inferno** (`2393088-2`).
+  Injecting rounds 14-16 gives exactly one high alert at round 14 spanning
+  `[14,16]`, residual -0.4046, five attribution contributions.
+
+### Traps found while running it on real data (new, on top of §6)
+
+1. **`alerts()` did not enforce its own rule.** It computed
+   `market_moved_first` and `no_explaining_event`, then emitted the alert
+   anyway — 700 of 1,481 (47%) failed a mandatory criterion. Fixed; alerts are
+   now 756 and all pass.
+2. **`baseline_gap` took the first three NON-NULL gaps.** On a map with no
+   opening prints the baseline came from the divergent rounds themselves,
+   cancelling the gap. It is positional now.
+3. **`persistence()` fused opposite-sign runs**, then used the first round's
+   direction for the whole span. Spans now break on a sign flip.
+4. **The fixture was too small.** At 16 maps the isotonic calibration saturates
+   to exactly 1.0, so the market cannot diverge and the injection test was
+   vacuous. Tests use 40.
+5. **`start_all.sh` would have killed the container** (see `deploy/deploy.md`).
 
 ## 8. Open items
 

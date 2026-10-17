@@ -8,7 +8,10 @@ map's opening offset), because a globally trained model carries a per-map bias a
 the absolute gap alerts on every round of every map; `map_name` was dropped from
 the feature set (a one-hot on map identity memorises the per-map label); the HTTP
 layer is stdlib `http.server` (no Flask wheel needed on s390x); thresholds remain
-provisional until calibrated on the real 1,284-map set.
+provisional until calibrated on the real data. Measured at the shipped
+settings on 1,014 maps: 756 alerts (0.75 per map), and every one of them
+satisfies all four criteria — the detector previously emitted spans that
+failed its own mandatory tests, which was 47% of the first real build.
 
 **Status:** implementation-ready. Every claim below is either measurable in the demo, measured already, or explicitly marked as deferred with the reason. Numbers marked *(measured)* were produced on the LinuxONE container on Oct 17, 2026; the rest are marked *(estimate)* or *(assumption)*.
 
