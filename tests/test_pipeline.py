@@ -271,6 +271,33 @@ class TestTeamNameMatching(unittest.TestCase):
         self.assertEqual({"unknown"}, align.team1_side(rows, "Outfit 49"))
 
 
+class TestStaticContainment(unittest.TestCase):
+    """A static route must not escape its base directory."""
+
+    def _server(self):
+        import importlib
+        from server import app as server_app
+        importlib.reload(server_app)
+        return server_app
+
+    def test_sibling_directory_with_shared_prefix_is_refused(self):
+        from pathlib import Path
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "site" / "static").mkdir(parents=True)
+            (root / "site" / "static_evil").mkdir(parents=True)
+            (root / "site" / "static_evil" / "secret.txt").write_text("leak")
+            site = self._server()
+            site.SITE_DIR = root / "site"
+            # the resolver the handler uses, exercised directly
+            base = (root / "site" / "static").resolve()
+            target = (base / "../static_evil/secret.txt").resolve()
+            self.assertFalse(target == base or base in target.parents,
+                             "a sibling dir sharing the prefix must not be served")
+            self.assertTrue(target.exists(), "the test fixture itself must exist")
+
+
 class TestEligibleMaps(unittest.TestCase):
     """A map may only be offered to the build if it has its OWN market series."""
 
@@ -312,6 +339,19 @@ class TestDetectionRules(unittest.TestCase):
             "t_start_utc": pd.date_range("2026-03-24T02:00:00Z", periods=n, freq="2min"),
             "t_end_utc": pd.date_range("2026-03-24T02:00:30Z", periods=n, freq="2min"),
         })
+
+    def test_alert_requires_a_market_step(self):
+        """A large residual with no market step must NOT be an alert.
+
+        47% of the alerts shipped in the first real build failed this, because
+        alerts() recorded the criterion and then ignored it.
+        """
+        from pipeline import detect
+        market = [0.50, 0.51, 0.85, 0.86, 0.87, 0.51]
+        model = [0.50, 0.51, 0.51, 0.51, 0.51, 0.51]
+        panel = self._panel(market, model)
+        self.assertEqual([], detect.alerts(panel, pd.DataFrame(columns=["ts_utc", "delta"])),
+                         "no market step -> no alert")
 
     def test_persistence_needs_consecutive_rounds(self):
         from pipeline import detect
@@ -371,13 +411,23 @@ class TestPipelineEndToEnd(unittest.TestCase):
             "CS2_ARTIFACT_DIR": str(cls.artifacts),
             "PYTHONPATH": str(ROOT),
         }
-        run(["tools/make_fixture.py", "--out", str(cls.data), "--maps", "16"], cls.env)
+        # 40 maps, matching the documented fixture: at 16 the isotonic
+        # calibration saturates to exactly 1.0 and the market cannot
+        # diverge from the model, which makes the injection test vacuous
+        run(["tools/make_fixture.py", "--out", str(cls.data), "--maps", "40"], cls.env)
         # the real dataset keeps maps_meta inside tables/; mirror that here so the
         # path-resolution code is exercised rather than assumed
         (cls.data / "tables").mkdir(exist_ok=True)
         (cls.data / "maps_meta.csv.gz").rename(cls.data / "tables" / "maps_meta.csv.gz")
         meta = pd.read_csv(cls.data / "tables" / "maps_meta.csv.gz")
-        cls.map_uid = str(meta["map_uid"].iloc[1])
+        # pick the fixture map with the most market prints: a map with no market
+        # data cannot exercise the injection path at all
+        odds = pd.read_csv(cls.data / "odds_table.csv.gz")
+        mw = odds[(odds["market"].astype(str).str.lower().isin({"map_winner", "map winner"}))
+                  & (odds["selection"].astype(str).str.lower() == "team1")]
+        counts = mw["map_uid"].astype(str).value_counts()
+        ranked = [u for u in counts.index if u in set(meta["map_uid"].astype(str))]
+        cls.map_uid = str(ranked[0]) if ranked else str(meta["map_uid"].iloc[1])
 
         run(["-m", "models.train"], cls.env)
         run(["-m", "pipeline.build_artifacts", "--out", str(cls.site),

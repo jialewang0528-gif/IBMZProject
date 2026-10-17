@@ -39,8 +39,12 @@ def baseline_gap(panel: pd.DataFrame, n: int = 3) -> float:
     on the residual gap (gap minus this baseline), which is what "the market
     moved away from the game state" actually means.
     """
-    g = gap_series(panel).dropna()
-    head = g.head(n)
+    # POSITIONAL, not "first n non-null". If the opening rounds have no market
+    # print, dropping nulls first pulls the baseline from whatever rounds do
+    # have one - which can be the divergent rounds themselves, cancelling the
+    # very gap being measured. A map with no opening prints gets 0.0.
+    g = gap_series(panel)
+    head = g.iloc[:n].dropna()
     return float(head.median()) if len(head) else 0.0
 
 
@@ -52,14 +56,24 @@ def persistence(gap: pd.Series, thresh: float = GAP_THRESHOLD,
                 k: int = PERSISTENCE_ROUNDS) -> list[tuple[int, int]]:
     """Spans (start_idx, end_idx) of >= k consecutive rounds above |thresh|.
 
+    A span also breaks when the sign of the residual flips. Two runs in opposite
+    directions are two different claims, and fusing them borrows the direction
+    of the first for the second: the "market moved in the divergence direction"
+    test then looks for a downward step inside an upward move and neither fires.
+
     Indices are positional; callers map them back to round_num.
     """
-    vals = gap.abs().fillna(0.0).to_numpy()
+    signed = pd.to_numeric(gap, errors="coerce").fillna(0.0).to_numpy()
+    vals = np.abs(signed)
     out: list[tuple[int, int]] = []
     start = None
     for i, v in enumerate(vals):
         if v >= thresh:
             if start is None:
+                start = i
+            elif np.sign(signed[i]) != np.sign(signed[start]):
+                if (i - start) >= k:
+                    out.append((start, i - 1))
                 start = i
         else:
             if start is not None and (i - start) >= k:
@@ -124,7 +138,15 @@ def severity(gap: float, span_rounds: int, corroborated: bool) -> str:
 
 
 def alerts(panel: pd.DataFrame, series: pd.DataFrame | None = None) -> list[dict]:
-    """Apply the spec's alert criteria. Returns contract-shaped dicts (no model)."""
+    """Apply the spec's alert criteria. Returns contract-shaped dicts (no model).
+
+    Spec 4.2 says an alert REQUIRES all four: a residual over threshold, held for
+    k rounds, a market step in the direction of the divergence, and no round
+    ending inside the resolution floor. This function used to compute the last
+    two as boolean flags and then emit the alert anyway, so 47% of the shipped
+    alerts failed a criterion the rule calls mandatory. The flags are still
+    reported, but a span that fails either one is not an alert.
+    """
     if panel.empty or "model_p" not in panel.columns:
         return []
     panel = panel.reset_index(drop=True).copy()
@@ -145,6 +167,10 @@ def alerts(panel: pd.DataFrame, series: pd.DataFrame | None = None) -> list[dict
         )
         t_market = row.get("market_ts_utc")
         clean = no_news(panel, pd.Timestamp(t_market)) if pd.notna(t_market) else True
+        if not (moved_first and clean):
+            # a divergence without a market move, or one explained by a round
+            # ending inside the floor, is not an alert under the stated rule
+            continue
         out.append({
             "round_num": int(row["round_num"]),
             "span": [int(panel["round_num"].iloc[start]), int(panel["round_num"].iloc[end])],
@@ -229,7 +255,10 @@ def main() -> None:
     df = features.build_map(panel)
     X, _, _ = features.feature_matrix(df)
     df["model_p"] = score_mod.score_panel(X)
-    series = market.market_series(args.map_uid)
+    # same market window the real build uses, so the numbers here match the site
+    window = (panel["t_start_utc"].min() - pd.Timedelta(minutes=30),
+              panel["t_end_utc"].max() + pd.Timedelta(minutes=5))
+    series = market.market_series(args.map_uid, window=window)
     found = alerts(df, series)
     print(f"map {args.map_uid}: {len(found)} alert(s)")
     for a in found:
@@ -246,7 +275,10 @@ def main() -> None:
         base = len(found)
         rounds = [int(x) for x in args.inject_rounds.split(",") if x.strip()]
         inj = inject_mod.inject(df, rounds)
-        inj_alerts = alerts(inj, series)
+        # the injection also writes market prints; passing the ORIGINAL series
+        # here is why the ablation used to "pass" only while the market-step
+        # criterion was being ignored
+        inj_alerts = alerts(inj, inject_mod.inject_series(series, inj, rounds))
         print(f"\nablation on {args.map_uid}:")
         print(f"  without injection: {base} alert(s)")
         print(f"  with injection R{args.inject_rounds}: {len(inj_alerts)} alert(s)")

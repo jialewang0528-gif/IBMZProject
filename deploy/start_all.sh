@@ -1,61 +1,39 @@
 #!/usr/bin/env bash
-# Start the site on the one port the platform exposes (38888) and move Jupyter
-# to localhost:8888 so it no longer owns the public port.
+# Run the site as the container's PROCESS.
 #
-# Idempotent: safe to re-run after a container restart, which is exactly when
-# Jupyter steals 38888 back.
-set -uo pipefail
+# It does NOT stop Jupyter, and that is deliberate.
+#
+# Measured topology on tylerinstance1 (17 Oct 2026):
+#   PID 1        /usr/bin/tini -g -- jupyter notebook ... --port=38888
+#   PID 6        jupyter-notebook        (child of tini)
+#   container    NetworkMode=host, RestartPolicy=no
+#
+# Because the container uses the host network namespace, 38888 IS the host's
+# port - there is no port mapping to change. Because tini forwards SIGTERM to
+# its only child, `pkill -f jupyter` kills Jupyter, tini exits, and the
+# container STOPS. With RestartPolicy=no nothing brings it back, so the old
+# version of this script took the whole box down and left it down.
+#
+# The port swap therefore has to happen from the host, where the container can
+# be stopped and replaced: see deploy/deploy_host.sh.
+#
+# This script is the command the replacement container runs. It is also useful
+# inside the Jupyter container on a spare port, to check the server without
+# disturbing 38888:
+#
+#   bash deploy/start_all.sh 38999
+set -euo pipefail
 
 APP_DIR="${APP_DIR:-/home/ibm-user/IBMZProject}"
-PUBLIC_PORT="${PUBLIC_PORT:-38888}"
-JUPYTER_PORT="${JUPYTER_PORT:-8888}"
-LOG_DIR="${LOG_DIR:-/tmp/cs2-site}"
-mkdir -p "$LOG_DIR"
+PUBLIC_PORT="${PUBLIC_PORT:-${1:-38888}}"
 
-cd "$APP_DIR" || { echo "no app dir: $APP_DIR"; exit 1; }
+cd "$APP_DIR"
 
-echo "[1/4] freeing port $PUBLIC_PORT"
-PIDS=""
-if command -v ss >/dev/null 2>&1; then
-  PIDS=$(ss -tlnp 2>/dev/null | awk -v p=":$PUBLIC_PORT" '$4 ~ p {print $6}' \
-         | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u)
-elif command -v lsof >/dev/null 2>&1; then
-  PIDS=$(lsof -ti "tcp:$PUBLIC_PORT" 2>/dev/null || true)
-fi
-for pid in $PIDS; do
-  echo "      killing pid $pid on $PUBLIC_PORT"
-  kill "$pid" 2>/dev/null || true
-done
-# the listener that matters is Jupyter, which the image entrypoint starts
-pkill -f "jupyter" 2>/dev/null || true
-pkill -f "port $PUBLIC_PORT" 2>/dev/null || true
-sleep 2
-
-echo "[2/4] starting Jupyter on 127.0.0.1:$JUPYTER_PORT (optional)"
-if ! (command -v ss >/dev/null && ss -tln 2>/dev/null | grep -q ":$JUPYTER_PORT"); then
-  nohup jupyter lab --no-browser --ip 127.0.0.1 --port "$JUPYTER_PORT" \
-    > "$LOG_DIR/jupyter.log" 2>&1 &
-  echo "      jupyter log: $LOG_DIR/jupyter.log"
-else
-  echo "      already listening on $JUPYTER_PORT"
+if [ -z "$(ls -A site/data 2>/dev/null)" ]; then
+  echo "site/data is empty - build it first:" >&2
+  echo "  python3 -m pipeline.build_artifacts --out site/data" >&2
+  exit 1
 fi
 
-echo "[3/4] starting site on 0.0.0.0:$PUBLIC_PORT"
-nohup python3 -m server.app --host 0.0.0.0 --port "$PUBLIC_PORT" \
-  > "$LOG_DIR/site.log" 2>&1 &
-echo "      site log: $LOG_DIR/site.log"
-
-echo "[4/4] waiting for /api/health"
-for i in $(seq 1 30); do
-  if curl -sf "http://127.0.0.1:$PUBLIC_PORT/api/health" >/dev/null 2>&1; then
-    echo "      OK after ${i}s"
-    curl -s "http://127.0.0.1:$PUBLIC_PORT/api/health"
-    echo
-    exit 0
-  fi
-  sleep 1
-done
-
-echo "      FAILED — last 20 lines of $LOG_DIR/site.log:"
-tail -20 "$LOG_DIR/site.log" 2>/dev/null || true
-exit 1
+echo "serving $APP_DIR/site on 0.0.0.0:$PUBLIC_PORT"
+exec python3 -m server.app --host 0.0.0.0 --port "$PUBLIC_PORT"

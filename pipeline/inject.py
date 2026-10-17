@@ -35,11 +35,21 @@ def inject(panel: pd.DataFrame, rounds: list[int], delta: float = INJECTION_DELT
     rng = rng or np.random.default_rng(0)
     out = panel.copy()
     out["injected"] = False
+    # real market coverage is not 100%: a round inside the injection window can
+    # have no print. Fall back to the nearest print, then to the model, rather
+    # than dying on a NAType float().
+    market_col = pd.to_numeric(out["market_p"], errors="coerce")
+    filled = market_col.ffill().bfill()
     for r in rounds:
         m = out["round_num"] == r
         if not m.any():
             continue
-        market = float(out.loc[m, "market_p"].iloc[0])
+        market = out.loc[m, "market_p"].iloc[0]
+        if pd.isna(market):
+            market = filled.loc[m].iloc[0]
+        if pd.isna(market):
+            market = out.loc[m, "model_p"].iloc[0]
+        market = float(market)
         model = float(out.loc[m, "model_p"].iloc[0])
         direction = 1.0 if market >= model else -1.0
         bump = direction * delta * float(rng.uniform(0.9, 1.1))
@@ -64,11 +74,15 @@ def inject_series(series: pd.DataFrame, panel: pd.DataFrame, rounds: list[int],
         row = panel[panel["round_num"] == r]
         if row.empty or pd.isna(row["market_p"].iloc[0]):
             continue
-        t_end = pd.Timestamp(row["t_end_utc"].iloc[0])
+        # the step must be visible BEFORE the round starts: the alert rule is
+        # "the market moved first", and it looks for a step in the 10 minutes
+        # preceding the round start. Printing at round end made the injected
+        # divergence unable to satisfy its own criterion.
+        t_start = pd.Timestamp(row["t_start_utc"].iloc[0])
         base = float(row["market_p"].iloc[0])
-        for offset_s in (150, 60):
+        for offset_s in (240, 120):
             extra.append({
-                "ts_utc": t_end - pd.Timedelta(seconds=offset_s),
+                "ts_utc": t_start - pd.Timedelta(seconds=offset_s),
                 "market_p": float(np.clip(base + rng.normal(0, 0.004), 0.01, 0.99)),
                 "is_live": True,
                 "source": "injected",

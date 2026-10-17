@@ -82,32 +82,36 @@ class Handler(BaseHTTPRequestHandler):
 
     def _file(self, path: Path) -> None:
         if not path.exists() or not path.is_file():
-            self._json(404, {"error": "not found", "path": str(path)})
+            # never echo the server's filesystem layout to a client
+            self._json(404, {"error": "not found", "path": "/" + path.name})
             return
         ctype = MIME.get(path.suffix, "application/octet-stream")
         self._send(200, path.read_bytes(), ctype)
 
+    def _static(self, rel: str, base: Path) -> None:
+        """Serve rel under base, or 403. Containment is checked on the path
+        components, not on a string prefix: `startswith` would also accept a
+        sibling directory named `static_evil`."""
+        base = base.resolve()
+        target = (base / rel).resolve()
+        if target != base and base not in target.parents:
+            self._json(403, {"error": "forbidden"})
+            return
+        self._file(target)
+
     # ---------- routes ----------
+    def do_HEAD(self) -> None:  # noqa: N802
+        self.do_GET()
+
     def do_GET(self) -> None:  # noqa: N802
         path = unquote(urlparse(self.path).path)
         if path in ("/", "/index.html"):
             self._file(SITE_DIR / "index.html")
         elif path.startswith("/static/"):
-            rel = path[len("/static/"):]
-            target = (SITE_DIR / "static" / rel).resolve()
-            if not str(target).startswith(str((SITE_DIR / "static").resolve())):
-                self._json(403, {"error": "forbidden"})
-                return
-            self._file(target)
+            self._static(path[len("/static/"):], SITE_DIR / "static")
         elif path.startswith("/data/"):
             # the static fallback bundle the page uses when the API is down
-            rel = path[len("/data/"):]
-            base = (SITE_DIR / "data").resolve()
-            target = (base / rel).resolve()
-            if not str(target).startswith(str(base)):
-                self._json(403, {"error": "forbidden"})
-                return
-            self._file(target)
+            self._static(path[len("/data/"):], SITE_DIR / "data")
         elif path == "/api/matches":
             if not STATE["matches"]:
                 self._json(503, {"error": "artifacts not built",
