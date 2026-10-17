@@ -64,5 +64,5 @@ python -m unittest discover -s tests -v
 - Market prices are 1-minute snapshots: ordering below ~60s plus map-start error
   is not measurable.
 - No round-level markets exist, so analysis is at map level.
-- Alert thresholds are provisional until calibrated on the real 297-map set.
+- Alert thresholds are provisional until calibrated on the real 1,284-map set.
 - Part of the market feed in the demo is injected and labelled as such.

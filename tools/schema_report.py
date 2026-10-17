@@ -7,6 +7,25 @@ Stdlib only. No quoting tricks needed: run it as a single command.
 
 DATA_ROOT defaults to /home/ibm-user/cs2_betting_data.
 Read-only: opens files, prints, writes nothing.
+
+HISTORY - read before changing the key logic
+--------------------------------------------
+An earlier version of this script produced the two numbers the whole project
+then quoted as measurements:
+
+  * it chose "key" columns by substring hint (("match", "demo", "game",
+    "series")), so maps_meta contributed match_id AND match_date AND
+    series_score1 AND series_score2 to ONE set, and it printed that set's size
+    as "key values". On this data that is 860 + 860 + 3 = 1,723 - which was
+    copied into the spec as "1,723 matches". 1,988 maps / 1,723 series = 1.15
+    maps per series, impossible for a best-of-3.
+  * it capped the odds-table scan at 400,000 rows and did not say so, so the
+    "overlap" it printed was an intersection with a truncated slice. That is
+    where "297" came from.
+
+So: key columns are now named explicitly, every distinct count is reported PER
+COLUMN (never unioned), and a truncated scan says TRUNCATED and refuses to
+print a ratio it would be lying about.
 """
 
 import gzip
@@ -24,6 +43,10 @@ TABLES = ["round_table", "round_detail", "player_round_economy", "kills",
           "maps_meta", "util_bought", "pistol_loss_opps", "player_map_stats"]
 CAP = 600
 
+# Columns that are genuinely keys. Anything else is data, and two data columns
+# must never be merged into one "key count".
+KEY_COLUMNS = ("match_id", "map_uid", "match_uid", "series_id", "event_id")
+
 
 def opener(path):
     if path.endswith(".gz"):
@@ -37,33 +60,52 @@ def delimiter(header):
     return best if counts[best] else ","
 
 
-def scan(path, key_hints, max_rows=None):
-    """Return (n_rows, header_list, delim, key_values_set, first_two_rows)."""
+def scan(path, max_rows=None):
+    """Read one delimited file. Counts are kept SEPARATELY per key column."""
     n = 0
+    truncated = False
     with opener(path) as fh:
         header_line = fh.readline().rstrip("\r\n")
         if not header_line:
-            return 0, [], ",", set(), []
+            return {"n": 0, "header": [], "delim": ",", "values": {},
+                    "first": [], "truncated": False}
         d = delimiter(header_line)
         header = [h.strip() for h in header_line.split(d)]
-        key_idx = [
-            i for i, h in enumerate(header)
-            if any(hint in h.lower() for hint in key_hints)
-        ]
-        keys = set()
+        key_idx = {h: i for i, h in enumerate(header) if h.lower() in KEY_COLUMNS}
+        values = {h: set() for h in key_idx}
         first = []
         for line in fh:
-            if max_rows and n >= max_rows:
+            if max_rows is not None and n >= max_rows:
+                truncated = True
                 break
             n += 1
             if len(first) < 2:
                 first.append(line.rstrip("\r\n")[:CAP])
-            if key_idx:
-                parts = line.split(d)
-                for i in key_idx:
-                    if i < len(parts) and parts[i].strip():
-                        keys.add(parts[i].strip())
-    return n, header, d, keys, first
+            parts = line.split(d)
+            for h, i in key_idx.items():
+                if i < len(parts) and parts[i].strip():
+                    values[h].add(parts[i].strip())
+    return {"n": n, "header": header, "delim": d, "values": values,
+            "first": first, "truncated": truncated}
+
+
+def report_key_columns(label, result):
+    """Print every distinct count on its own line. Never print a union."""
+    for column, values in result["values"].items():
+        suffix = "  TRUNCATED - not a total" if result["truncated"] else ""
+        print(f"   {column}: {len(values)} distinct{suffix}")
+    if len(result["values"]) > 1:
+        names = ", ".join(result["values"])
+        print(f"   NOTE: {len(result['values'])} key-like columns present ({names});"
+              f" they are counted separately on purpose")
+
+
+def find_file(name):
+    for base in (ROOT, os.path.join(ROOT, "tables")):
+        p = os.path.join(base, name)
+        if os.path.isfile(p):
+            return p
+    return None
 
 
 def main():
@@ -86,64 +128,64 @@ def main():
                     print(f"  {os.path.getsize(q)/1e6:9.2f} MB  {name}")
 
     print("\n== files ==")
-    id_sets = {}
+    file_keys = {}
     for name in FILES:
-        p = os.path.join(ROOT, name)
-        if not os.path.isfile(p):
+        p = find_file(name)
+        if not p:
             continue
-        n, header, d, keys, first = scan(p, ("match", "series", "id"))
-        print(f"\n-- {name}: {n} rows, {len(header)} cols, delim={d!r}")
-        print(f"   cols: {header[:25]}{' ...' if len(header) > 25 else ''}")
-        for row in first:
+        res = scan(p)
+        print(f"\n-- {name}: {res['n']} rows, {len(res['header'])} cols, "
+              f"delim={res['delim']!r}")
+        print(f"   cols: {res['header'][:25]}{' ...' if len(res['header']) > 25 else ''}")
+        for row in res["first"]:
             print(f"   row: {row}")
-        if keys and len(keys) < 50000:
-            id_sets[name] = keys
-            print(f"   key values: {len(keys)}")
+        report_key_columns(name, res)
+        if "match_id" in res["values"]:
+            file_keys[name] = res["values"]["match_id"]
 
     print("\n== tables/ ==")
     table_keys = {}
     for t in TABLES:
-        p = os.path.join(ROOT, "tables", f"{t}.csv.gz")
-        if not os.path.isfile(p):
-            p = os.path.join(ROOT, f"{t}.csv.gz")
-        if not os.path.isfile(p):
+        p = find_file(f"{t}.csv.gz")
+        if not p:
             continue
-        n, header, d, keys, first = scan(p, ("match", "demo", "game", "series"))
-        print(f"\n-- {t}: {n} rows, {len(header)} cols")
-        print(f"   cols: {header[:30]}{' ...' if len(header) > 30 else ''}")
-        for row in first:
+        res = scan(p)
+        print(f"\n-- {t}: {res['n']} rows, {len(res['header'])} cols")
+        print(f"   cols: {res['header'][:30]}{' ...' if len(res['header']) > 30 else ''}")
+        for row in res["first"]:
             print(f"   row: {row}")
-        if keys:
-            table_keys[t] = keys
-            print(f"   key values: {len(keys)}")
+        report_key_columns(t, res)
+        if "match_id" in res["values"]:
+            table_keys[t] = res["values"]["match_id"]
 
     print("\n== JOIN RATES ==")
-    match_ids = id_sets.get("matches.csv")
-    if match_ids:
-        print(f"  matches.csv ids: {len(match_ids)}")
+    print("  All rates below join ONE named column against ONE named column.")
+    market_ids = file_keys.get("odds_join_keys.csv")
+    if market_ids:
+        print(f"\n  odds_join_keys.csv match_id: {len(market_ids)} distinct")
         for t, keys in table_keys.items():
-            inter = match_ids & keys
-            print(f"  {t:<24} ids={len(keys):<8} overlap={len(inter):<8} "
-                  f"({100*len(inter)/max(len(match_ids),1):.1f}% of matches)")
-    else:
-        print("  matches.csv missing or no id-like column found")
+            inter = keys & market_ids
+            print(f"    {t:<24} match_id={len(keys):<6} "
+                  f"shared with join keys={len(inter):<6} "
+                  f"({100*len(inter)/max(len(market_ids),1):.1f}% of market side)")
 
-    odds_keys = None
-    p = os.path.join(ROOT, "odds_table.csv.gz")
-    if os.path.isfile(p):
-        n, header, d, keys, first = scan(p, ("match_id",), max_rows=400000)
-        odds_keys = keys
-        print(f"\n  odds_table.csv.gz: {n} rows scanned, {len(header)} cols")
-        print(f"   cols: {header}")
-        for row in first:
+    p = find_file("odds_table.csv.gz")
+    if p:
+        # No row cap: a truncated scan cannot honestly report an intersection.
+        res = scan(p)
+        print(f"\n  odds_table.csv.gz: {res['n']} rows, {len(res['header'])} cols")
+        print(f"   cols: {res['header']}")
+        for row in res["first"]:
             print(f"   row: {row}")
-        if match_ids:
-            inter = match_ids & keys
-            print(f"   match_id overlap with matches.csv: {len(inter)} "
-                  f"({100*len(inter)/max(len(match_ids),1):.1f}%)")
-        for t, keys2 in table_keys.items():
-            inter = keys2 & keys
-            print(f"   match_id overlap with {t}: {len(inter)}")
+        report_key_columns("odds_table", res)
+        for column, values in res["values"].items():
+            for t, keys in table_keys.items():
+                if not keys:
+                    continue
+                inter = keys & values
+                print(f"   {column} overlap with {t}: {len(inter)}")
+    else:
+        print("\n  odds_table.csv.gz: MISSING - no join rate computed")
 
 
 if __name__ == "__main__":

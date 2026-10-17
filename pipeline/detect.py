@@ -277,7 +277,7 @@ def main() -> None:
         print(f"control alert count: {fp} over {args.fp_check} maps "
               f"({fp / max(args.fp_check, 1):.2f} per map)")
         print("NOTE: thresholds (0.15 / 2 rounds) are provisional; calibrate on the "
-              "real 297-map set before quoting a false-positive rate.")
+              "real 1,284-map set before quoting a false-positive rate.")
 
 
 if __name__ == "__main__":

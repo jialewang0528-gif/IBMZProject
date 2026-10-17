@@ -17,7 +17,7 @@ Oct 17, 2026 · companion to `cs2-match-fixing-spec.md` v2
 ```
 browser ──► 0.0.0.0:38888 (Flask, public)
                 ├── /                     static SPA shell (index.html + app.js)
-                ├── /api/matches          precomputed list of 297 maps        [cache]
+                ├── /api/matches          precomputed list of aligned maps    [cache]
                 ├── /api/series/<map_uid> precomputed round panel + alerts    [cache]
                 ├── /api/score            POST round state → live model inference
                 └── /api/health           arch, uname, models loaded, uptime
@@ -95,7 +95,7 @@ team1_is_ct(map, round) = (round_table.ct_team_name_resolved == maps_meta.team1)
 label(map, round)       = 1 if team1 wins the map else 0     # from map_winner_team_resolved
 ```
 
-The market side already guarantees `selection=team1` means `maps_meta.team1` (verified upstream: 664/664 match winners agree with HLTV results). **T1 must assert these agree on at least 20 maps, or every downstream number is wrong.**
+The market side already guarantees `selection=team1` means `maps_meta.team1` (verified upstream: 665/665 match winners agree with HLTV results). **T1 must assert these agree on at least 20 maps, or every downstream number is wrong.**
 
 ### 2.3 Clock model
 
@@ -196,7 +196,7 @@ Response:
 
 ```json
 { "ok": true, "arch": "s390x", "uname": "Linux ... s390x", "python": "3.12.15",
-  "models_loaded": ["logit-v1", "xgb-v1"], "n_maps": 297, "uptime_s": 412 }
+  "models_loaded": ["logit-v1", "xgb-v1"], "n_maps": 1284, "uptime_s": 412 }
 ```
 
 ---
@@ -307,7 +307,7 @@ hltv_stars (0..2+), map_index
 | Function | Signature | Notes |
 |---|---|---|
 | `build` | `build(out_dir: Path, limit: int | None = None, inject_map: str | None = None) -> dict` | writes `matches.json`, `series/<map_uid>.json`, `summary.json` (counts, model metrics, floor) |
-| `main` | CLI: `--out site/data --limit 297 --inject-map <map_uid>` | |
+| `main` | CLI: `--out site/data --inject-map <map_uid>` | |
 
 **Acceptance:** `python -m pipeline.build_artifacts --out site/data` produces a valid bundle: `site/data/matches.json` parses, has ≥ 200 entries, every `series/<map_uid>.json` referenced exists and matches the contract, and total size < 20 MB. `python -m json.tool` on each file is part of the check.
 
@@ -325,7 +325,7 @@ hltv_stars (0..2+), map_index
 
 Rules: bind `0.0.0.0:38888`; `threaded=True`; no debug in demo mode; 5s timeout on model load at boot; if artifacts are missing, serve a JSON 503 explaining how to build them (never a stack trace).
 
-**Acceptance:** with the server running, `curl -s localhost:38888/api/health | python -m json.tool` shows `"arch": "s390x"` and `"n_maps": 297`; `curl -s -X POST localhost:38888/api/score -d '<§3.3 body>' -H 'Content-Type: application/json'` returns `p_logit` in `(0,1)` and `latency_ms` < 50.
+**Acceptance:** with the server running, `curl -s localhost:38888/api/health | python -m json.tool` shows `"arch": "s390x"` and an `"n_maps"` that equals the number of maps in `site/data/matches.json`; `curl -s -X POST localhost:38888/api/score -d '<§3.3 body>' -H 'Content-Type: application/json'` returns `p_logit` in `(0,1)` and `latency_ms` < 50.
 
 ### 4.11 `site/index.html` + `site/app.js`
 
@@ -394,7 +394,7 @@ The static-only path is **not cheaper** than the lean path, because the public U
 
 ## 6. Definition of done
 
-1. `curl 148.100.79.57:38888/api/health` from outside returns `"arch": "s390x"` and `n_maps: 297`.
+1. `curl 148.100.79.57:38888/api/health` from outside returns `"arch": "s390x"` and an `n_maps` consistent with `site/data/matches.json`.
 2. The site lists ≥ 200 maps; clicking the injected map fires exactly one alert with contributions and the verbatim disclaimer.
 3. `POST /api/score` returns a probability and a latency in milliseconds, computed at request time (proved by changing the input and seeing the output change).
 4. Killing the API leaves the page rendering from the static bundle with a visible banner.
@@ -410,7 +410,7 @@ The static-only path is **not cheaper** than the lean path, because the public U
 |---|---|---|
 | Jupyter reclaims 38888 | container restart | run `deploy/start_all.sh`; it is idempotent and takes ~5s |
 | `tickrate` detection ambiguous | odd maps | exclude the map from artifacts with `reason: "clock_unresolved"`; never guess |
-| Only ~297 maps join both halves | fixed by data | already reflected: `n_maps: 297`, no coverage claim beyond it |
+| Only ~1,284 maps join both halves | fixed by data | already reflected: every coverage claim states 1,284 maps / 654 series; `n_maps` is whatever `build_artifacts` emitted |
 | Logistic model underperforms (Brier > 0.25) | weak features | fall back to fewer features + isotonic only; do not ship an uncalibrated model |
 | Public names + injected data | decided, not a risk to manage technically | UI disclaimer, `noindex`, no allegation language |
 | Flask missing in image | `pip install flask` allowed? | verified Jinja2 present; Flask is pure Python and installs on s390x or falls back to `http.server` + manual routing |

@@ -44,18 +44,34 @@ Consequences baked into the code: stdlib `http.server` (no Flask), no parquet
   parsed with `demoparser2 0.42.0`. Tables: `round_table` 42,009 rows,
   `round_detail` 42,009, `kills` 286,671, `player_round_economy` 420,090,
   `util_bought` 341,258, `player_map_stats` 61,707, `maps_meta` 1,988 maps /
-  1,723 matches, `pistol_loss_opps` 3,960.
+  **860 series**, `pistol_loss_opps` 3,960.
 - **Market data**: Polymarket public APIs. 12,489 events / 117,318 markets;
   scope 860 Bo3 series Mar 23–Apr 20 2026; 1-minute price snapshots including
   in-play; every trade fill. `odds_table.csv.gz` ~963k Polymarket rows + 13k
   OddsPapi rows. **Polymarket prices are already probabilities — no margin.**
-- **Join**: 1,723 game-side matches ∩ 664 market-side = **297 matches**. That is
-  the demo pool. Do not quote 860 or 1,723 as coverage.
+- **Join**: 860 game-side series ∩ **665** market-side = **665 series**;
+  **1,284 maps across 654 series have both halves.** That is the demo pool.
+  407 series have market data on every map played. A series-level join is not
+  enough: 78 market `map_uid`s have no demo counterpart, so 11 series have no
+  alignable map at all.
+- **The old "297" was an artifact, not a measurement.**
+  `tools/schema_report.py` unioned `match_id` (860) + `match_date` (860) + score
+  tokens (3) into one set and printed its size as "key values" = 1,723; and it
+  capped the odds scan at 400k rows, so its "intersection" came from a truncated
+  slice = 297. Never quote 297 or 1,723. See spec §3.3.
 - **No round-level markets exist** → analysis is at map level.
 - `maps_meta.match_date` is the **series start**, identical for every map of a
   match. Map *k* start = series start + prior map durations + 600s breaks.
-- `round_detail` clock columns may be ticks (64/128) or already seconds; this is
-  inferred, never assumed.
+- It is ALSO **event-local time mislabelled as UTC**: measured against each
+  map's market settlement, the game clock sits 1–3 whole hours ahead, clustering
+  at −1 h (CET), −2 h (CEST), −3 h (MSK). Uncorrected the feeds never overlap and
+  coverage is 0.00 on every map. The clock is now anchored per map on its market
+  settlement (last print strictly between 0.02 and 0.98). This also makes the
+  600s break assumption cancel out.
+- `round_detail` clock columns are **64-tick** in this dataset, verified against
+  the modal freezetime (1,280 = 20 s) and the 115 s + 40 s round ceiling. Mean
+  round length cannot discriminate the rate: 7,000 units is 109 s at 64-tick and
+  55 s at 128-tick. The rate is inferred dataset-wide, never assumed.
 
 ---
 
@@ -77,7 +93,7 @@ so thresholding the absolute gap alerts on every round of every map. Residual
 measures the actual claim: the market moving *away* from the game state.
 
 **Thresholds (0.15 / 2 rounds) are provisional.** They were never calibrated on
-the real 297 maps. Calibrating them is the most valuable remaining task; do not
+the real 1,284 maps. Calibrating them is the most valuable remaining task; do not
 quote a false-positive rate until it is done.
 
 ---
@@ -151,7 +167,7 @@ the host.
   `tools/make_fixture.py` (40 synthetic maps): Brier 0.041, attribution
   reconstructs the logit to 1e-9, injected divergence detected end to end,
   server serves all routes, static fallback works.
-- **Not yet run against the real 297 maps.** The blocking input is the output of
+- **Not yet run against the real 1,284 maps.** The blocking input is the output of
   `python3 -m pipeline.align --validate` (tickrate resolved / orientation ok /
   market coverage median). Without it, nothing downstream on real data is proven.
 
@@ -162,9 +178,10 @@ the host.
    interpretations — fix the inference, don't tune thresholds.
 2. `models.train --cv` on real data. If Brier > 0.21, reduce features (economy +
    score only) rather than shipping an uncalibrated model.
-3. `build_artifacts` over all 297, pick a demo map, inject rounds 14–16.
+3. `build_artifacts` over every aligned map, pick a demo map, inject rounds 14–16.
 4. `deploy/start_all.sh`, then verify from outside: `curl 148.100.79.57:38888/api/health`
-   must show `"arch": "s390x"`, `n_maps: 297`.
+   must show `"arch": "s390x"` and an `n_maps` equal to the number of maps in
+   `site/data/matches.json` (not a hardcoded pool size).
 5. Record the video (4 min: problem → architecture → replay with injection firing
    → alert with contributions → limits).
 
@@ -174,7 +191,7 @@ the host.
 
 | Item | Owner | Note |
 |---|---|---|
-| Threshold calibration on 297 real maps | next agent | highest-value task; provisional 0.15/2-rounds |
+| Threshold calibration on 1,284 real maps | next agent | highest-value task; provisional 0.15/2-rounds |
 | Video format/length | organiser rules | unknown; plan assumes 4 min |
 | `/home/ibm-user/.git-credentials` holds a plaintext GitHub PAT | human | delete before serving publicly; the app is unauthenticated by design |
 | Data is in the container's writable layer | human | copy to `/home/linux1/shared` (bind mount) before hour 6 or lose it |
@@ -200,7 +217,7 @@ the host.
 
 ## 10. Honest limitations to state in any pitch
 
-- 297 maps have both data halves.
+- 1,284 maps across 654 series have both data halves; ~80% of them clock-align.
 - 60-second market resolution plus map-start error: ordering below that is not
   measurable.
 - No round-level markets → map-level analysis only.

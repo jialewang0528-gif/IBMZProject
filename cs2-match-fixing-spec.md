@@ -8,7 +8,7 @@ map's opening offset), because a globally trained model carries a per-map bias a
 the absolute gap alerts on every round of every map; `map_name` was dropped from
 the feature set (a one-hot on map identity memorises the per-map label); the HTTP
 layer is stdlib `http.server` (no Flask wheel needed on s390x); thresholds remain
-provisional until calibrated on the real 297 maps.
+provisional until calibrated on the real 1,284-map set.
 
 **Status:** implementation-ready. Every claim below is either measurable in the demo, measured already, or explicitly marked as deferred with the reason. Numbers marked *(measured)* were produced on the LinuxONE container on Oct 17, 2026; the rest are marked *(estimate)* or *(assumption)*.
 
@@ -20,7 +20,7 @@ provisional until calibrated on the real 297 maps.
 
 | # | Claim | Status in demo | Evidence |
 |---|---|---|---|
-| 1 | Market-implied probability and a game-state win-probability model can be placed on one clock for a real tier-2/3 CS2 map | **Proved** | 297 matches have both; one worked example shown on screen |
+| 1 | Market-implied probability and a game-state win-probability model can be placed on one clock for a real tier-2/3 CS2 map | **Proved** | 1,284 maps have both; one worked example shown on screen |
 | 2 | The model is calibrated, so a divergence in probability points is meaningful | **Proved** | Brier score + reliability curve on held-out maps |
 | 3 | A sustained market-vs-model gap can be detected, ranked and explained per alert | **Proved** | Alert card with feature attribution |
 | 4 | Player-level output can be produced without relying on cross-match baselines | **Proved (weak form)** | Within-match self-deviation, corroborating only |
@@ -40,7 +40,7 @@ The honest one-liner for the pitch: *we place a real market series next to a rea
 - **In scope:** pro and semi-pro CS2, priority tier 2 and tier 3. Tournament organizers and integrity bodies receive ranked, explained alerts for human review.
 - **Out of scope:** competing with bookmaker-side monitors (Sportradar UFDS, IBIA) on odds or account coverage; issuing verdicts; live ingest; round-level market analysis.
 - **Unit of analysis:** the **map**, because that is the finest quantity both sides observe. Series-level markets are context; rounds are the game-side granularity and the alert timestamp.
-- **Why map-level:** Polymarket carries match winner, map 1 and map 2 winner, maps handicap and total maps. It does not carry round handicaps for best-of-3. Reported *(measured)*: none of the 664 matched Polymarket events had round-handicap or total-rounds markets.
+- **Why map-level:** Polymarket carries match winner, map 1 and map 2 winner, maps handicap and total maps. It does not carry round handicaps for best-of-3. Reported *(measured)*: none of the 665 matched Polymarket events had round-handicap or total-rounds markets.
 
 ---
 
@@ -89,7 +89,7 @@ flowchart TD
 | Access | public, no key |
 | Corpus pulled | 12,489 resolved CS2 events, 117,318 markets, Apr 2025 – Oct 2026 |
 | Scope used | 860 best-of-3 series, Mar 23 – Apr 20 2026 |
-| Coverage | Polymarket 664 (77%), OddsPapi 444 (52%), either 708 (82%) |
+| Coverage | Polymarket 665 (77%), OddsPapi 444 (52%), either 710 (83%) |
 | Price resolution | 1-minute snapshots from market open to settlement, **including in-play** |
 | Trade resolution | every fill with wallet and tx hash |
 | Stored | `prices/{event_id}.csv.gz` (665 files), `trades/{event_id}.csv.gz` (34 files), `markets.csv` (7,512 rows), `odds_table.csv.gz` (963,774 Polymarket rows + 13,209 OddsPapi rows) |
@@ -97,7 +97,7 @@ flowchart TD
 
 Validation already performed by the data owner *(measured)*:
 
-- Settlement: match winner 664/664, map 1 and map 2 winner 1,204/1,204, total maps 664/664, maps handicap 872/872 agree with HLTV results. This proves team1/team2 orientation per series.
+- Settlement: match winner 665/665, map 1 and map 2 winner 1,204/1,204, total maps 665/665, maps handicap 872/872 agree with HLTV results. This proves team1/team2 orientation per series.
 - Closing line: favourite won 67.4% of 582 series; Brier 0.202 vs 0.25 coin flip.
 - Cross-source: Pinnacle vs Polymarket closing team1 probability correlate 0.987 on 14 series (mean gap 2.4 points).
 
@@ -108,24 +108,39 @@ Validation already performed by the data owner *(measured)*:
 | Origin | Hugging Face `blanchon/opencs2_dataset_demo` (formerly `blanchon/cs2_dataset_demo`), **CC-BY-4.0**, 9,843 files, companion `blanchon/opencs2_dataset` (100k files) |
 | Parser | `demoparser2` 0.42.0, recorded per row in `pistol_loss_opps` with dataset commit `912a363098feec3f220e41d68634d2f71676c28b` |
 | Derived tables | `round_table` 42,009 rows/31 cols · `round_detail` 42,009/11 · `kills` 286,671/20 · `player_round_economy` 420,090/14 · `util_bought` 341,258/11 · `player_map_stats` 61,707/18 · `pistol_loss_opps` 3,960/43 · `maps_meta` 1,988/16 |
-| Coverage | 1,723 matches, 1,988 maps |
+| Coverage | 860 series, 1,988 maps |
 
 Key columns for A: `round_num`, `map_index`, `map_name`, `ct_team_balance`, `t_team_balance`, `ct_team_spend`, `t_team_spend`, `ct_team_current_equip_value`, `t_team_current_equip_value`, `ct_armor_players`, `ct_helmet_players`, `ct_defuser_players` (and T-side equivalents), `ct_buy`, `t_buy`, `bomb_planted`, plus the label `winner_side`.
 
 Key columns for C: `player_round_economy` (per-round per-player balance, spend, equip, armor) joined to `kills` (per-round per-player kills, damage, headshots, opening duels via tick order) and `player_map_stats` (per-map rating, ADR, KAST).
 
-Key column for alignment: `round_detail.start` (tick index of round start), `round_detail.official_end`, and `maps_meta.match_date` as the map-start anchor.
+Key column for alignment: `round_detail.start` (tick index of round start), `round_detail.freeze_end`, `round_detail.end`, and `maps_meta.match_date` as the series-start anchor (corrected per map — see §4.3).
 
 ### 3.3 The join *(measured)*
 
 | Step | Result |
 |---|---|
-| Game-side `match_id` universe | 1,723 |
-| Market-side `match_id` universe | 664 |
-| **Intersection** | **297 matches** (17.2% of game-side, 44.7% of market-side) |
-| Join method | team-name normalisation + ±12h time window + string similarity ≥0.8, both orders; keys in `odds_join_keys.csv` (708 rows) |
+| Game-side `match_id` universe | 860 series |
+| Market-side `match_id` universe | 665 series |
+| **Intersection** | **665 series** (77.3% of game-side, 100% of market-side) |
+| Maps in intersected series | 1,545 of 1,988 |
+| **Maps with a map-level market** | **1,284** (65%), across 654 series |
+| Series with market data on every map played | 407 |
+| Join method | team-name normalisation + ±12h time window + string similarity ≥0.8, both orders; keys in `odds_join_keys.csv` (710 rows) |
 
-**297 is the demo pool, not 860 and not 1,723.** Any coverage claim in the pitch must say "297 matches where both a demo-derived round table and an in-play market series exist".
+**1,284 maps across 654 series is the demo pool.** A series-level join is not enough
+to analyse: 78 market `map_uid`s have no demo counterpart, so 11 series join at
+series level but have no map that can be aligned at all.
+
+> **Correction, 17 Oct 2026.** Earlier versions of this spec said "1,723 game-side
+> matches ∩ 664 market-side = 297 matches". Both numbers were artifacts of
+> `tools/schema_report.py`, not measurements: 1,723 was the tool's column selector
+> unioning `match_id` (860) + `match_date` (860) + score tokens (3) into one set and
+> printing its size as "key values"; 297 came from a hardcoded `max_rows=400,000`
+> cap on the odds table, so the "intersection" was computed on a truncated slice.
+> The tell that was missed: 1,988 maps / 1,723 "matches" = 1.15 maps per series,
+> impossible for a best-of-3. The upstream tool is fixed and the numbers above are
+> reproducible from `odds_join_report.csv` and `maps_meta`.
 
 ### 3.4 Evaluation anchor
 
@@ -180,7 +195,12 @@ A divergence alert requires **all** of:
 ### 4.3 Resolution floor (the honest limitation)
 
 - Market timestamps are **1-minute snapshots**: we cannot order two events closer than 60s, and a print is attributed to the round window it falls in, not to the second it happened.
-- **`maps_meta.match_date` is the series start, not the map start** — every map of a match carries the same value *(measured)*. Map *k*'s start is therefore computed as series start + the durations of maps 1..k−1 + a 10-minute break per map, with each map's duration taken from its last `official_end` tick. `python -m pipeline.align --validate` reports per-map market coverage, which drops to ~0 if this anchor is wrong.
+- **The clock has three separate defects, all measured, all now handled** *(measured 17 Oct 2026)*:
+  1. `maps_meta.match_date` is the series start, not the map start — every map of a match carries the same value. Map *k*'s start is series start + the durations of maps 1..k−1 + a 10-minute break per map, each duration taken from its last `end` tick.
+  2. The clock columns are **64-tick**, not 128. A mean round length of ~7,000 clock units is a plausible 109 s at 64-tick *and* a plausible 55 s at 128-tick, so the rate is pinned by rules the server enforces instead: the modal freezetime (1,280 units = 20 s) and the 115 s round clock plus 40 s bomb ceiling. At 128-tick no round in 42,009 ever reaches the round limit, which is impossible.
+  3. `match_date` is **event-local time mislabelled as UTC**. Measured against the market's own settlement of the same map, the game clock sits 1–3 whole hours ahead, clustering at −1 h (CET), −2 h (CEST) and −3 h (MSK). Uncorrected, the two feeds do not overlap at all and market coverage is 0.00 on every map.
+- The correction is anchored on each map's **settlement**: the last market print still strictly between 0.02 and 0.98, i.e. immediately before the price collapses at map end. That is a known shared event between the two feeds, not a price level, so hanging the clock on it does not import the signal being measured. It also makes the break assumption cancel out.
+- `python -m pipeline.align --validate` reports tickrate, orientation, the applied correction and per-map market coverage: median coverage 1.00 across 250 sampled maps, 20% of maps flagged as not clock-alignable rather than silently misaligned.
 - HLTV `scheduled_start_utc` is **not** used: it sits a median 2.1 hours after the market's own start time *(measured)*.
 - Therefore: **ordering below ~60 seconds plus map-start error is not measurable.** Every alert displays this floor. Round-level market moves cannot be detected at all, because round-level markets do not exist in this data.
 
@@ -235,7 +255,7 @@ The "trained and served on the mainframe" claim is literally true: model fitting
 
 | Hours | Work | Done when |
 |---|---|---|
-| 0:00–0:45 | Alignment spike: pick 1 match from the 297, build round-state table + market series on one clock, plot | One chart with two curves |
+| 0:00–0:45 | Alignment spike: pick 1 match from the 1,284, build round-state table + market series on one clock, plot | One chart with two curves |
 | 0:45–2:30 | A: features from `round_table` start-of-round state, logistic + xgboost, calibration on held-out maps | Brier + reliability curve printed |
 | 2:30–3:30 | B + E: gap series, §4.2 criteria, severity | Alert fires on the prepared example |
 | 3:30–4:30 | C and D | z-scores and step detector output in the alert card |
@@ -257,11 +277,11 @@ The "trained and served on the mainframe" claim is literally true: model fitting
 2. Tier 2/3 is where fixing is cheapest and monitoring is weakest — and it is where Polymarket actually has real-money in-play prices (77% of our 860-series window).
 3. The alert is explainable by construction: "market 0.71 vs model 0.42 at round 14, gap 29 points, persistence 3 rounds, driven by these three features". A reviewer can argue with it.
 4. It already runs on the platform, on the platform's own architecture: trained and served on s390x LinuxONE, no GPU, standard Python stack.
-5. Direction: the same pipeline against GRID/FACEIT feeds and a licensed sportsbook feed, where 297 matches becomes thousands and the 60-second floor becomes seconds.
+5. Direction: the same pipeline against GRID/FACEIT feeds and a licensed sportsbook feed, where 1,284 maps becomes tens of thousands and the 60-second floor becomes seconds.
 
 **Limits slide (say these out loud; they are the credibility):**
 
-- 297 matches have both data halves; that is the demo pool.
+- 1,284 maps across 654 series have both data halves; that is the demo pool.
 - 60-second price resolution plus map-start estimation error; we cannot order events below that.
 - No round-level markets exist, so per-round market divergence is not measurable.
 - One case (NOMERCY) is a retrospective, not a validation study.
@@ -285,9 +305,9 @@ The "trained and served on the mainframe" claim is literally true: model fitting
 |---|---|---|
 | Container data is in the writable layer; recreation loses 485 MB of teammate work | Medium | Copy `cs2_betting_data` into `/home/linux1/shared` (the bind mount) before 6:00 |
 | 35 GB free; a large pull fills the disk | Low–medium | No new bulk pulls; work from existing tables |
-| Only 297 matches join both halves | Certain | Demo picks from the intersection; every coverage claim states 297 |
+| Only 1,284 maps (654 series) join both halves, and 20% of those do not clock-align | Certain | Demo picks from the aligned subset; every coverage claim states 1,284 |
 | `est_live_map_index` / `est_live_round` are empty (needs `matches.csv`/`maps.csv`/`rounds.csv.gz` in `teammate_data/`, absent) | Certain | Compute the alignment ourselves from `maps_meta.match_date` + `round_detail.start`; do not wait on the odds-side rebuild |
-| Map-start anchor is wrong for some maps | Medium | Sharp-move refinement; flag any map where the implied start conflicts with `match_date` by >10 min and exclude it from the demo pool |
+| Map-start anchor is wrong for some maps | Medium | **Happened**: `match_date` is event-local time labelled UTC, 1–3 h out. Fixed by anchoring on each map's market settlement; maps without a datable settlement are flagged, not guessed |
 | `flask` absent | Low | `pip install flask` (pure Python) or stdlib `http.server` |
 | 10-hour overrun | Medium | Cut order in §6 |
 | Real names appear in a published video | Accepted (see §9) | Player identities shown as ranks; decision recorded, not re-litigated |

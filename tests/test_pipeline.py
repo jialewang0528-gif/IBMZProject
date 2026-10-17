@@ -78,6 +78,34 @@ class TestRepoPackaging(unittest.TestCase):
         missing = [f for f in self.REQUIRED if f not in tracked]
         self.assertFalse(missing, f"not tracked by git (ignored?): {missing}")
 
+    def test_no_stale_pool_numbers_in_docs(self):
+        """The old pool size was an instrument artifact, not a measurement.
+
+        tools/schema_report.py unioned match_id with match_date and the score
+        tokens (860+860+3 = 1,723) and printed it as a key count, then capped
+        the odds scan at 400k rows; "1,723" and "297" got quoted as facts. One
+        of them (1,988 maps / 1,723 series = 1.15 maps per series) was
+        arithmetically impossible. Keep them out of the deliverables.
+        """
+        bad = ["1,723", "297 maps", "297 matches", "n_maps: 297", "limit 297"]
+        # the post-mortem is allowed to cite them, but only while explaining that
+        # it was an artifact rather than restating it as the pool size
+        allowed = ("artifact", "schema_report", "union", "correction", "post-mortem")
+        offenders = []
+        for name in ("cs2-match-fixing-spec.md", "README.md", "docs/HANDOFF.md",
+                     "docs/implementation-plan.md", "pipeline/detect.py"):
+            lines = (ROOT / name).read_text().splitlines()
+            for lineno, line in enumerate(lines, 1):
+                if not any(phrase in line for phrase in bad):
+                    continue
+                # the post-mortem explains the numbers, so the marker may be in a
+                # neighbouring line of the same paragraph
+                window = " ".join(lines[max(0, lineno - 4):lineno + 3]).lower()
+                if any(word in window for word in allowed):
+                    continue
+                offenders.append(f"{name}:{lineno}: {line.strip()[:70]!r}")
+        self.assertFalse(offenders, "stale pool numbers: " + "; ".join(offenders))
+
     def test_packages_are_importable(self):
         for pkg in ("pipeline", "models"):
             proc = subprocess.run([PY, "-c", f"import {pkg}; print('ok')"], cwd=ROOT,
