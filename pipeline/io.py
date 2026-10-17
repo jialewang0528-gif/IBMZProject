@@ -134,13 +134,18 @@ def maps() -> pd.DataFrame:
 
 
 def eligible_maps(root: Path | None = None) -> pd.DataFrame:
-    """Maps that are (a) QC-pass, (b) in an event we track, (c) have market rows."""
+    """Maps that are (a) QC-pass and (b) have a MAP-level market series.
+
+    The test used to be "the match_id appears somewhere in the odds table",
+    which is true for a match that only has match_winner and handicap prices.
+    That admitted 254 maps with no map_winner print at all, so a build over
+    them would emit an empty market curve. Require the map's own market.
+    """
     meta = maps()
-    if root is not None:
-        meta = meta  # maps() is global; root only affects odds here
-    odds = read_odds(root)
-    market_matches = set(odds["match_id"].dropna().unique())
-    out = meta[meta["eligible"] & meta["match_id"].isin(market_matches)].copy()
+    market = read_map_winner(root)
+    have_market = set(market["map_uid"].dropna().astype(str))
+    out = meta[meta["eligible"]
+               & meta["map_uid"].astype(str).isin(have_market)].copy()
     return out.sort_values(["match_date", "match_id", "map_index"]).reset_index(drop=True)
 
 

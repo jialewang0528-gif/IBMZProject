@@ -217,7 +217,9 @@ the host.
 
 ## 10. Honest limitations to state in any pitch
 
-- 1,284 maps across 654 series have both data halves; ~80% of them clock-align.
+- 1,284 maps have both data halves; **1,014 survive the whole pipeline**
+  (269 skipped: sparse market series, unresolved clock, or upstream team-name
+  mismatches). The site shows those 1,014.
 - 60-second market resolution plus map-start error: ordering below that is not
   measurable.
 - No round-level markets → map-level analysis only.

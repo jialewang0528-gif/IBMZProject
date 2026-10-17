@@ -271,6 +271,37 @@ class TestTeamNameMatching(unittest.TestCase):
         self.assertEqual({"unknown"}, align.team1_side(rows, "Outfit 49"))
 
 
+class TestEligibleMaps(unittest.TestCase):
+    """A map may only be offered to the build if it has its OWN market series."""
+
+    def test_map_without_map_level_market_is_excluded(self):
+        from pipeline import io
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            subprocess.run([PY, "tools/make_fixture.py", "--out", str(root),
+                            "--maps", "4"], cwd=ROOT, check=True,
+                           capture_output=True)
+            with _data_root(root):
+                before = io.eligible_maps()
+                self.assertGreater(len(before), 0)
+                victim = str(before["map_uid"].iloc[0])
+                odds_path = root / "odds_table.csv.gz"
+                odds = pd.read_csv(odds_path)
+                # keep the match alive (match_winner rows stay) but remove every
+                # map-level print for one map
+                keep = ~((odds["market"].astype(str).str.lower().isin(
+                    {"map_winner", "map winner"}))
+                    & (odds["map_uid"].astype(str) == victim))
+                odds[keep].to_csv(odds_path, index=False, compression="gzip")
+                io._read_odds_cached.cache_clear()
+                io._map_winner_cached.cache_clear()
+                after = io.eligible_maps()
+            self.assertNotIn(victim, set(after["map_uid"].astype(str)),
+                             "a map with only match-level prices must not be eligible")
+            self.assertTrue(set(after["map_uid"].astype(str))
+                            < set(before["map_uid"].astype(str)))
+
+
 class TestDetectionRules(unittest.TestCase):
     def _panel(self, market, model):
         n = len(market)

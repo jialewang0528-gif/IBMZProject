@@ -24,6 +24,8 @@ import pandas as pd
 from pipeline import align, detect, features, inject, io, market
 from models import score as score_mod
 
+MARKET_CONTEXT_MIN = 30
+
 DISCLAIMER = ("Divergence signal only. Not a finding about any person. "
               "Part of the market feed may be simulated (see injected flags).")
 
@@ -43,7 +45,11 @@ def build_map(uid: str, odds: pd.DataFrame, inject_rounds: list[int] | None = No
     except Exception as exc:  # noqa: BLE001
         return None, {"map_uid": uid, "skipped": f"clock: {type(exc).__name__}: {exc}"}
 
-    series_mkt = market.market_series(uid, odds)
+    # the map's own trading window, with a margin so the opening rounds have a
+    # print to compare against
+    window = (panel["t_start_utc"].min() - pd.Timedelta(minutes=MARKET_CONTEXT_MIN),
+              panel["t_end_utc"].max() + pd.Timedelta(minutes=5))
+    series_mkt = market.market_series(uid, odds, window=window)
     quality = market.series_quality(series_mkt)
     if not quality["usable"]:
         return None, {"map_uid": uid, "skipped": f"market: {quality['reason']}"}
@@ -155,7 +161,11 @@ def build(out_dir: Path, limit: int | None = None, inject_map: str | None = None
     for _, meta in el.iterrows():
         uid = str(meta["map_uid"])
         inj = inject_rounds if (inject_map and uid == inject_map) else None
-        entry, doc = build_map(uid, odds, inj)
+        try:
+            entry, doc = build_map(uid, odds, inj)
+        except Exception as exc:  # noqa: BLE001 - one bad map must not stop the build
+            entry, doc = None, {"map_uid": uid,
+                                "skipped": f"{type(exc).__name__}: {exc}"[:200]}
         if entry is None:
             skipped.append(doc)
             continue

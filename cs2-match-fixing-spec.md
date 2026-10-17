@@ -128,7 +128,10 @@ Key column for alignment: `round_detail.start` (tick index of round start), `rou
 | Series with market data on every map played | 407 |
 | Join method | team-name normalisation + ±12h time window + string similarity ≥0.8, both orders; keys in `odds_join_keys.csv` (710 rows) |
 
-**1,284 maps across 654 series is the demo pool.** A series-level join is not enough
+**1,284 maps have both halves; 1,014 of them survive the full pipeline**
+(market quality gate, clock resolution and team orientation), which is the set
+the site actually shows. Quote 1,014, not 1,284, when describing what the
+product runs on. A series-level join is not enough
 to analyse: 78 market `map_uid`s have no demo counterpart, so 11 series join at
 series level but have no map that can be aligned at all.
 

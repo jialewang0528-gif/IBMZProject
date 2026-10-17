@@ -21,8 +21,15 @@ MIN_SPAN_HOURS = 0.5
 MAX_GAP_S = 1800
 
 
-def market_series(map_uid: str, odds: pd.DataFrame | None = None) -> pd.DataFrame:
-    """Return ts_utc, market_p (+ meta) for one map, sorted, deduplicated."""
+def market_series(map_uid: str, odds: pd.DataFrame | None = None,
+                  window: tuple | None = None) -> pd.DataFrame:
+    """Return ts_utc, market_p (+ meta) for one map, sorted, deduplicated.
+
+    `window` (start, end) restricts the series to the period the map was being
+    traded. A map_winner market opens days ahead, so the raw series contains
+    overnight gaps of hours; the quality gate measures continuity, and it has to
+    measure it over the part we analyse, not over the pre-match history.
+    """
     meta = io.get_map(map_uid)
     odds = io.read_odds() if odds is None else odds
     sel = odds[odds["selection"].astype(str).str.lower() == "team1"]
@@ -30,6 +37,9 @@ def market_series(map_uid: str, odds: pd.DataFrame | None = None) -> pd.DataFram
     by_uid = sel["map_uid"].astype(str) == str(map_uid)
     by_idx = (sel["match_id"] == meta["match_id"]) & (sel["map_index"] == meta["map_index"])
     series = sel[by_uid | by_idx].copy()
+    if window is not None and not series.empty:
+        lo, hi = pd.Timestamp(window[0]), pd.Timestamp(window[1])
+        series = series[(series["ts_utc"] >= lo) & (series["ts_utc"] <= hi)].copy()
     if series.empty:
         return pd.DataFrame(columns=["ts_utc", "market_p", "is_live", "source", "injected"])
 
