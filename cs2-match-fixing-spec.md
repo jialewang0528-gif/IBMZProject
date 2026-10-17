@@ -210,6 +210,52 @@ A divergence alert requires **all** of:
 - HLTV `scheduled_start_utc` is **not** used: it sits a median 2.1 hours after the market's own start time *(measured)*.
 - Therefore: **ordering below ~60 seconds plus map-start error is not measurable.** Every alert displays this floor. Round-level market moves cannot be detected at all, because round-level markets do not exist in this data.
 
+### 4.3a Calibration status: the residual detector does not beat a misaligned null
+
+*(measured 17 Oct 2026 on 137 real maps; reproduce with `python3 tools/calibrate.py --maps 150`)*
+
+The thresholds were provisional. They have now been measured, and the result is
+negative. The null is a **circular shift** of each map's market series relative
+to its rounds: the real price path is preserved, only its alignment with the
+game is destroyed. Any alert the null produces is a false positive by
+construction.
+
+| threshold | alerts/map | maps alerting | null alerts/map | null share |
+|---|---|---|---|---|
+| 0.10 | 0.96 | 65.0% | 0.92 | 94.9% |
+| **0.15 (shipped)** | **0.77** | **55.5%** | **0.79** | **101.9%** |
+| 0.20 | 0.54 | 39.4% | 0.66 | 122.1% |
+| 0.25 | 0.42 | 31.4% | 0.54 | 129.2% |
+| 0.30 | 0.21 | 16.8% | 0.44 | 209.2% |
+
+Read this plainly: **at every threshold the real data produces no more alerts
+than a misaligned copy of itself, and the ratio gets worse as the threshold
+rises.** No choice of threshold rescues this, because the problem is not the
+threshold.
+
+Why, specifically: the alert statistic is a *level* gap against a per-map
+opening baseline. Both the market and the model move slowly over ~20 rounds, so
+shifting the market by a few rounds leaves a similar level profile, and the
+residual behaves the same way. The detector is measuring "has the market drifted
+away from a constant", which is true of almost any long price series, not "has
+the market moved against what the game state says". The `market_moved_first`
+criterion does not rescue it: a 0.05 step inside 10 minutes is satisfied by
+one-minute noise on nearly every map.
+
+**Consequence for the pitch:** the shipped alert is a review candidate produced
+by an uncalibrated rule. The demo's headline alert is *injected and labelled*,
+and that injection is the only alert in the demo that can be attributed with
+certainty. Do not claim a detection rate, a false-positive rate, or that any
+real alert is meaningful.
+
+**What would fix it:** a statistic that is sensitive to *alignment* rather than
+level — e.g. compare the market's change to the model's change round by round
+(the model moves when rounds are won; a correctly aligned market moves with
+it), and require the divergence to be a departure from that co-movement. A
+circular-shift null is the right test for it, and `tools/calibrate.py` already
+implements the harness. That is the next piece of work, and it is a detector
+change, not a threshold change.
+
 ### 4.4 Ranking and severity
 
 | Output | Rule |

@@ -92,9 +92,19 @@ Why: a globally trained model carries a per-map offset (~20 points in fixtures),
 so thresholding the absolute gap alerts on every round of every map. Residual
 measures the actual claim: the market moving *away* from the game state.
 
-**Thresholds (0.15 / 2 rounds) are provisional.** They were never calibrated on
-the real 1,284 maps. Calibrating them is the most valuable remaining task; do not
-quote a false-positive rate until it is done.
+**Thresholds (0.15 / 2 rounds) are now measured, and they do not work.**
+Calibrated on 137 real maps against a circular-shift null (the market's real
+price path, misaligned with the rounds): at 0.15 the real data produces 0.77
+alerts/map and the null produces 0.79 — a null share of 102%. It gets worse as
+the threshold rises (122% at 0.20, 209% at 0.30), so no threshold rescues it.
+Reproduce: `python3 tools/calibrate.py --maps 150`.
+
+The cause is structural: the statistic is a *level* gap against a per-map
+opening baseline, and both feeds move slowly, so a misaligned market has a
+similar level profile. The fix is a detector that is sensitive to *alignment*
+(does the market move with the model's round-to-round changes, and where does it
+stop?), not a different number. See spec §4.3a. Until then: quote no detection
+rate and no false-positive rate, and keep saying an alert is not a verdict.
 
 ---
 
@@ -205,7 +215,7 @@ in §8.
 
 | Item | Owner | Note |
 |---|---|---|
-| Threshold calibration on 1,284 real maps | next agent | highest-value task; provisional 0.15/2-rounds |
+| Detector redesign (alignment-sensitive statistic) | next agent | highest-value task; thresholds are calibrated and do not beat a null (spec §4.3a) |
 | Video format/length | organiser rules | unknown; plan assumes 4 min |
 | `/home/ibm-user/.git-credentials` holds a plaintext GitHub PAT | human | delete before serving publicly; the app is unauthenticated by design |
 | Data is in the container's writable layer | human | copy to `/home/linux1/shared` (bind mount) before hour 6 or lose it |

@@ -137,7 +137,9 @@ def severity(gap: float, span_rounds: int, corroborated: bool) -> str:
     return "low"
 
 
-def alerts(panel: pd.DataFrame, series: pd.DataFrame | None = None) -> list[dict]:
+def alerts(panel: pd.DataFrame, series: pd.DataFrame | None = None,
+           thresh: float = GAP_THRESHOLD, k: int = PERSISTENCE_ROUNDS,
+           step_thresh: float = STEP_THRESHOLD) -> list[dict]:
     """Apply the spec's alert criteria. Returns contract-shaped dicts (no model).
 
     Spec 4.2 says an alert REQUIRES all four: a residual over threshold, held for
@@ -152,8 +154,8 @@ def alerts(panel: pd.DataFrame, series: pd.DataFrame | None = None) -> list[dict
     panel = panel.reset_index(drop=True).copy()
     panel["gap"] = gap_series(panel)
     panel["residual_gap"] = residual_gap(panel)
-    spans = persistence(panel["residual_gap"])
-    steps = step_detector(series) if series is not None else []
+    spans = persistence(panel["residual_gap"], thresh, k)
+    steps = step_detector(series, thresh=step_thresh) if series is not None else []
     out = []
     for start, end in spans:
         row = panel.iloc[start]
@@ -179,7 +181,8 @@ def alerts(panel: pd.DataFrame, series: pd.DataFrame | None = None) -> list[dict
             "baseline_gap": round(baseline_gap(panel), 4),
             "severity": severity(resid, end - start + 1, corroborated=False),
             "criteria": {
-                "residual_ge_15": bool(abs(resid) >= GAP_THRESHOLD),
+                "residual_ge_thresh": bool(abs(resid) >= thresh),
+                "residual_ge_15": bool(abs(resid) >= thresh),
                 "persistence_rounds": int(end - start + 1),
                 "market_moved_first": bool(moved_first),
                 "no_explaining_event": bool(clean),
