@@ -207,12 +207,19 @@ def player_deviation(map_uid: str, rounds: list[int] | None = None) -> pd.DataFr
     eco["round_num"] = pd.to_numeric(eco["round_num"], errors="coerce").astype(int)
     kills["round_num"] = pd.to_numeric(kills["round_num"], errors="coerce").astype(int)
 
-    per_round = (kills.groupby(["attacker_steamid", "round_num"]).size()
+    # Join on player NAME, not steamid.
+    #
+    # player_round_economy stores steamid as int64 (exact); kills stores
+    # attacker_steamid as float64. These ids are ~7.6e16, well past 2^53, so the
+    # float copy is rounded to a different number and the join returned nothing
+    # for every map: kills stayed 0, every player had zero variance, and every
+    # player was skipped. Player deviation shipped empty on all 1,014 maps.
+    per_round = (kills.groupby(["attacker_name", "round_num"]).size()
                  .rename("kills").reset_index()
-                 .rename(columns={"attacker_steamid": "steamid"}))
-    eco["steamid"] = eco["steamid"].astype(str)
-    per_round["steamid"] = per_round["steamid"].astype(str)
-    merged = eco.merge(per_round, on=["steamid", "round_num"], how="left")
+                 .rename(columns={"attacker_name": "player_name"}))
+    eco["player_name"] = eco["player_name"].astype(str).str.strip()
+    per_round["player_name"] = per_round["player_name"].astype(str).str.strip()
+    merged = eco.merge(per_round, on=["player_name", "round_num"], how="left")
     merged["kills"] = merged["kills"].fillna(0)
 
     rows = []

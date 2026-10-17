@@ -437,6 +437,20 @@ class TestPipelineEndToEnd(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
+    def test_series_carries_player_deviation(self):
+        """The player panel shipped empty on all 1,014 real maps: kills stores
+        steamid as float64, player_round_economy as int64, and at ~7.6e16 those
+        two are different numbers, so the join matched nothing and every player
+        was skipped for having zero variance."""
+        built = json.loads((self.site / "matches.json").read_text())
+        self.assertTrue(built, "the build produced no maps")
+        uid = built[0]["map_uid"]          # a map that survived the gates
+        doc = json.loads((self.site / "series" / f"{uid}.json").read_text())
+        self.assertTrue(doc["players"], "player deviation must not be empty")
+        for row in doc["players"]:
+            self.assertIn("z_mean", row)
+            self.assertIn("name", row)
+
     def test_align_validates_clock(self):
         out = run(["-m", "pipeline.align", "--validate"], self.env).stdout
         self.assertIn("tickrate resolved", out)
