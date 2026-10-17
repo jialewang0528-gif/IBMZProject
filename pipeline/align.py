@@ -36,6 +36,12 @@ class ClockError(RuntimeError):
     pass
 
 
+# detect_tickrate returns a divisor for the round_detail tick columns:
+#   64 / 128 -> the column is in ticks at that rate
+#   1        -> the column is ALREADY in seconds (some exports do this)
+SECONDS_DIVISOR = 1
+
+
 def detect_tickrate(map_uid: str) -> int:
     """Pick the tickrate whose implied round duration is physically plausible.
 
@@ -51,6 +57,11 @@ def detect_tickrate(map_uid: str) -> int:
         raise ClockError(f"duration_ticks missing for {map_uid}")
     mean_ticks = float(ticks.mean())
 
+    # 1) already seconds? (round durations land directly in the plausible band)
+    if PLAUSIBLE_ROUND_S[0] <= mean_ticks <= PLAUSIBLE_ROUND_S[1]:
+        return SECONDS_DIVISOR
+
+    # 2) ticks at a known rate?
     plausible = [tr for tr in TICKRATES
                  if PLAUSIBLE_ROUND_S[0] <= mean_ticks / tr <= PLAUSIBLE_ROUND_S[1]]
     if len(plausible) == 1:
@@ -67,8 +78,11 @@ def detect_tickrate(map_uid: str) -> int:
             if scores[best] <= MARKET_SPAN_TOLERANCE:
                 return best
     raise ClockError(
-        f"tickrate ambiguous for {map_uid}: mean duration_ticks={mean_ticks:.0f} "
-        f"implies {[round(mean_ticks / tr, 1) for tr in TICKRATES]}s for {TICKRATES}"
+        f"clock unit unresolved for {map_uid}: mean duration_ticks={mean_ticks:.0f}; "
+        f"as seconds that is {mean_ticks:.1f}s, as ticks it is "
+        f"{[round(mean_ticks / tr, 1) for tr in TICKRATES]}s at {TICKRATES}. "
+        f"Plausible round length is {PLAUSIBLE_ROUND_S[0]:.0f}-{PLAUSIBLE_ROUND_S[1]:.0f}s, "
+        f"so the column is in neither seconds nor a supported tickrate."
     )
 
 
@@ -92,16 +106,23 @@ def _market_span_s(map_uid: str) -> float | None:
     return (live["ts_utc"].max() - map_start_utc(map_uid)).total_seconds()
 
 
-def _map_duration_s(map_index_meta: pd.Series, tickrate: int = 64) -> float:
-    """Duration of one map in seconds, from its last official_end tick."""
+def _map_duration_s(map_index_meta: pd.Series) -> float:
+    """Duration of one map in seconds, from its last official_end (or end) column."""
     det = io.read_table("round_detail")
     rows = det[det["map_uid"].astype(str) == str(map_index_meta["map_uid"])]
     if rows.empty:
         return 0.0
-    last_tick = pd.to_numeric(rows["official_end"], errors="coerce").max()
-    if pd.isna(last_tick):
-        return 0.0
-    return float(last_tick) / tickrate
+    uid = str(map_index_meta["map_uid"])
+    try:
+        divisor = detect_tickrate(uid)
+    except ClockError:
+        divisor = 64
+    for col in ("official_end", "end"):
+        if col in rows.columns:
+            last = pd.to_numeric(rows[col], errors="coerce").max()
+            if pd.notna(last):
+                return float(last) / divisor
+    return 0.0
 
 
 def map_start_utc(map_uid: str) -> pd.Timestamp:

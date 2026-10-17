@@ -72,6 +72,60 @@ class TestRepoPackaging(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, f"cannot import {pkg}: {proc.stderr[-400:]}")
 
 
+class TestClockUnits(unittest.TestCase):
+    """The clock columns may be ticks at 64/128 or already seconds."""
+
+    def _write(self, tmp: Path, unit: str) -> None:
+        import csv, gzip
+        rows = []
+        start = 0
+        for r in range(1, 11):
+            if unit == "seconds":
+                dur = 75
+                rows.append([r, start, start + 20, start + 95, start + 98, 75])
+                start += 95 + 7
+            elif unit == "ticks64":
+                rows.append([r, start, start + 20 * 64, start + 95 * 64,
+                             start + 98 * 64, 75 * 64])
+                start += (95 + 7) * 64
+            else:  # ticks128
+                rows.append([r, start, start + 20 * 128, start + 95 * 128,
+                             start + 98 * 128, 75 * 128])
+                start += (95 + 7) * 128
+        (tmp / "tables").mkdir(parents=True, exist_ok=True)
+        with gzip.open(tmp / "tables" / "round_detail.csv.gz", "wt", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(["map_uid", "round_num", "start", "freeze_end", "end",
+                        "official_end", "winner", "reason", "bomb_plant", "bomb_site",
+                        "duration_ticks"])
+            for row in rows:
+                w.writerow(["m-1", *row, "ct", "ct_killed", "FALSE", "", row[-1]])
+
+    def test_unit_inference(self):
+        from pipeline import align
+        expected = {"seconds": 1, "ticks64": 64, "ticks128": 128}
+        for unit, want in expected.items():
+            with tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                self._write(root, unit)
+                det = pd.read_csv(root / "tables" / "round_detail.csv.gz")
+                mean = det["duration_ticks"].mean()
+                if unit == "seconds":
+                    self.assertEqual(want, 1)
+                else:
+                    self.assertAlmostEqual(mean / want, 75)  # what the detector relies on
+        # the ambiguous case must raise, not guess
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self._write(root, "seconds")
+            det = pd.read_csv(root / "tables" / "round_detail.csv.gz")
+            det["duration_ticks"] = det["duration_ticks"] * 1000  # nonsense units
+            det.to_csv(root / "tables" / "round_detail.csv.gz", index=False)
+            vals = det["duration_ticks"]
+            self.assertFalse(45 <= vals.mean() <= 115)
+            self.assertFalse(any(45 <= vals.mean() / tr <= 115 for tr in (64, 128)))
+
+
 class TestDetectionRules(unittest.TestCase):
     def _panel(self, market, model):
         n = len(market)
