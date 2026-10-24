@@ -196,7 +196,7 @@ Response:
 
 ```json
 { "ok": true, "arch": "s390x", "uname": "Linux ... s390x", "python": "3.12.15",
-  "models_loaded": ["logit-v1", "xgb-v1"], "n_maps": 1284, "uptime_s": 412 }
+  "models_loaded": ["logit-v1", "xgb-v1"], "n_maps": 1014, "uptime_s": 412 }
 ```
 
 ---

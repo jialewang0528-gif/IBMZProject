@@ -7,8 +7,8 @@ from the absolute market−model gap to the **residual** gap (absolute minus tha
 map's opening offset), because a globally trained model carries a per-map bias and
 the absolute gap alerts on every round of every map; `map_name` was dropped from
 the feature set (a one-hot on map identity memorises the per-map label); the HTTP
-layer is stdlib `http.server` (no Flask wheel needed on s390x); thresholds remain
-provisional until calibrated on the real data. Measured at the shipped
+layer is stdlib `http.server` (no Flask wheel needed on s390x); thresholds have since
+been calibrated against a misaligned null (§4.3a). Measured at the shipped
 settings on 1,014 maps: 756 alerts (0.75 per map), and every one of them
 satisfies all four criteria — the detector previously emitted spans that
 failed its own mandatory tests, which was 47% of the first real build.
@@ -377,7 +377,7 @@ The "trained and served on the mainframe" claim is literally true: model fitting
 | 5 | "Moved first" | Market component must move before the round boundary, with no explaining game event, above a declared floor | Oct 17 |
 | 6 | Resolution floor | 60s price granularity + map-start estimation error; not resolvable below that | Oct 17 |
 | 7 | Alert rule | 15-point gap, ≥2 consecutive rounds, plus D move and no-news filter | Oct 17 |
-| 8 | Ranking vs alerting | Absolute gap alerts; within-set percentile ranks | Oct 17 |
+| 8 | Ranking vs alerting | Residual gap alerts (vs the map's opening baseline); within-set percentile ranks | Oct 17 |
 | 9 | Model | Logistic regression for alerting (exact attribution); xgboost as benchmark | Oct 17 |
 | 10 | Component C | Within-match self-deviation only, corroboration only (no cross-match baselines) | Oct 17 |
 | 11 | Component D | Step change + print-size z + no-news filter on one series; cross-book detection deferred (needs ≥2 feeds) | Oct 17 |

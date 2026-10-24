@@ -2,8 +2,11 @@
 
 Game-side integrity layer for Counter-Strike 2: it puts live market-implied
 probability next to a game-state win-probability model on one clock, and ranks
-matches where the market moved away from what the game said — for a human to
+matches where the market moved away from what the game said, for a human to
 investigate. **An alert is not a verdict.**
+
+Runs end to end on IBM LinuxONE (s390x): ingest, alignment, training, scoring
+and the dashboard. Live: http://148.100.79.57:38888/
 
 | Document | Purpose |
 |---|---|
@@ -17,11 +20,11 @@ investigate. **An alert is not a verdict.**
 ```
 pipeline/   io.py  align.py  features.py  market.py  detect.py  inject.py  build_artifacts.py
 models/     train.py  score.py            (logistic for alerting, xgboost as benchmark)
-server/     app.py                        (stdlib http.server — no Flask on s390x)
+server/     app.py                        (stdlib http.server, no Flask on s390x)
 site/       index.html  static/app.js  static/style.css   (vanilla JS, offline-capable)
 deploy/     start_all.sh  Dockerfile  deploy.md
 tools/      audit_data.py  audit_cell.py  schema_report.py  make_fixture.py
-tests/      test_pipeline.py              (16 tests, `python -m unittest discover -s tests`)
+tests/      test_pipeline.py              (33 tests, `python -m unittest discover -s tests`)
 ```
 
 ## Run it
@@ -64,5 +67,6 @@ python -m unittest discover -s tests -v
 - Market prices are 1-minute snapshots: ordering below ~60s plus map-start error
   is not measurable.
 - No round-level markets exist, so analysis is at map level.
-- Alert thresholds are provisional until calibrated on the real 1,284-map set.
+- The alert rule was calibrated against a time-shifted copy of the market and does
+  not beat it yet (spec §4.3a), so alerts are review leads, not detections.
 - Part of the market feed in the demo is injected and labelled as such.
